@@ -1,0 +1,261 @@
+use serde::Deserialize;
+use std::collections::HashSet;
+
+#[derive(Debug, Deserialize)]
+struct BenchmarkEpisode {
+    text: String,
+    expected_entities: Vec<ExpectedEntity>,
+    expected_relations: Vec<ExpectedRelation>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExpectedEntity {
+    name: String,
+    entity_type: String,
+    span_start: usize,
+    span_end: usize,
+}
+
+#[derive(Debug, Deserialize)]
+struct ExpectedRelation {
+    head: String,
+    relation: String,
+    tail: String,
+}
+
+/// Compute precision, recall, and F1 score given predicted and expected string sets.
+///
+/// Returns `(precision, recall, f1)`. If both sets are empty, returns `(1.0, 1.0, 1.0)`.
+fn compute_f1(predicted: &[String], expected: &[String]) -> (f64, f64, f64) {
+    if predicted.is_empty() && expected.is_empty() {
+        return (1.0, 1.0, 1.0);
+    }
+
+    let predicted_set: HashSet<&String> = predicted.iter().collect();
+    let expected_set: HashSet<&String> = expected.iter().collect();
+
+    let true_positives = predicted_set.intersection(&expected_set).count() as f64;
+
+    let precision = if predicted_set.is_empty() {
+        0.0
+    } else {
+        true_positives / predicted_set.len() as f64
+    };
+
+    let recall = if expected_set.is_empty() {
+        0.0
+    } else {
+        true_positives / expected_set.len() as f64
+    };
+
+    let f1 = if (precision + recall) == 0.0 {
+        0.0
+    } else {
+        2.0 * precision * recall / (precision + recall)
+    };
+
+    (precision, recall, f1)
+}
+
+fn load_episodes() -> Vec<BenchmarkEpisode> {
+    let fixture_path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/benchmark_episodes.json"
+    );
+    let data = std::fs::read_to_string(fixture_path)
+        .expect("Failed to read benchmark_episodes.json");
+    serde_json::from_str(&data).expect("Failed to deserialize benchmark episodes")
+}
+
+#[test]
+fn test_fixture_loads_and_has_50_episodes() {
+    let episodes = load_episodes();
+    assert_eq!(
+        episodes.len(),
+        50,
+        "Expected exactly 50 benchmark episodes, got {}",
+        episodes.len()
+    );
+}
+
+#[test]
+fn test_all_entity_types_covered() {
+    let episodes = load_episodes();
+    let required: HashSet<&str> = [
+        "Person",
+        "Component",
+        "Service",
+        "Language",
+        "Database",
+        "Infrastructure",
+        "Decision",
+        "Constraint",
+        "Metric",
+        "Pattern",
+    ]
+    .into_iter()
+    .collect();
+
+    let found: HashSet<&str> = episodes
+        .iter()
+        .flat_map(|ep| ep.expected_entities.iter())
+        .map(|e| e.entity_type.as_str())
+        .collect();
+
+    let missing: HashSet<&&str> = required.iter().filter(|t| !found.contains(**t)).collect();
+    assert!(
+        missing.is_empty(),
+        "Missing entity types in fixture: {:?}",
+        missing
+    );
+}
+
+#[test]
+fn test_all_relation_types_covered() {
+    let episodes = load_episodes();
+    let required: HashSet<&str> = [
+        "chose",
+        "rejected",
+        "replaced",
+        "depends_on",
+        "fixed",
+        "introduced",
+        "deprecated",
+        "caused",
+        "constrained_by",
+    ]
+    .into_iter()
+    .collect();
+
+    let found: HashSet<&str> = episodes
+        .iter()
+        .flat_map(|ep| ep.expected_relations.iter())
+        .map(|r| r.relation.as_str())
+        .collect();
+
+    let missing: HashSet<&&str> = required.iter().filter(|t| !found.contains(**t)).collect();
+    assert!(
+        missing.is_empty(),
+        "Missing relation types in fixture: {:?}",
+        missing
+    );
+}
+
+#[test]
+fn test_span_offsets_are_valid() {
+    let episodes = load_episodes();
+    for (i, ep) in episodes.iter().enumerate() {
+        for ent in &ep.expected_entities {
+            assert!(
+                ent.span_start < ent.span_end,
+                "Episode {}: entity '{}' has span_start ({}) >= span_end ({})",
+                i,
+                ent.name,
+                ent.span_start,
+                ent.span_end
+            );
+            assert!(
+                ent.span_end <= ep.text.len(),
+                "Episode {}: entity '{}' has span_end ({}) > text.len() ({})",
+                i,
+                ent.name,
+                ent.span_end,
+                ep.text.len()
+            );
+            let extracted = &ep.text[ent.span_start..ent.span_end];
+            assert_eq!(
+                extracted, ent.name,
+                "Episode {}: span [{}, {}) extracts '{}' but expected '{}'",
+                i, ent.span_start, ent.span_end, extracted, ent.name
+            );
+        }
+    }
+}
+
+#[test]
+fn test_episode_entity_count_bounds() {
+    let episodes = load_episodes();
+    for (i, ep) in episodes.iter().enumerate() {
+        let n_ent = ep.expected_entities.len();
+        let n_rel = ep.expected_relations.len();
+        assert!(
+            (2..=6).contains(&n_ent),
+            "Episode {}: expected 2-6 entities, got {}",
+            i,
+            n_ent
+        );
+        assert!(
+            (1..=4).contains(&n_rel),
+            "Episode {}: expected 1-4 relations, got {}",
+            i,
+            n_rel
+        );
+    }
+}
+
+#[test]
+fn test_f1_perfect_match() {
+    let predicted = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+    let expected = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+    let (p, r, f1) = compute_f1(&predicted, &expected);
+    assert!((p - 1.0).abs() < f64::EPSILON);
+    assert!((r - 1.0).abs() < f64::EPSILON);
+    assert!((f1 - 1.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn test_f1_no_overlap() {
+    let predicted = vec!["a".to_string(), "b".to_string()];
+    let expected = vec!["c".to_string(), "d".to_string()];
+    let (p, r, f1) = compute_f1(&predicted, &expected);
+    assert!((p - 0.0).abs() < f64::EPSILON);
+    assert!((r - 0.0).abs() < f64::EPSILON);
+    assert!((f1 - 0.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn test_f1_partial_overlap() {
+    // predicted: {a, b, c}, expected: {a, b, d}
+    // TP=2, FP=1, FN=1 => P=2/3, R=2/3, F1=2/3
+    let predicted = vec!["a".to_string(), "b".to_string(), "c".to_string()];
+    let expected = vec!["a".to_string(), "b".to_string(), "d".to_string()];
+    let (p, r, f1) = compute_f1(&predicted, &expected);
+    let expected_val = 2.0 / 3.0;
+    assert!((p - expected_val).abs() < 1e-9);
+    assert!((r - expected_val).abs() < 1e-9);
+    assert!((f1 - expected_val).abs() < 1e-9);
+}
+
+#[test]
+fn test_f1_empty_inputs() {
+    let (p, r, f1) = compute_f1(&[], &[]);
+    assert!((p - 1.0).abs() < f64::EPSILON);
+    assert!((r - 1.0).abs() < f64::EPSILON);
+    assert!((f1 - 1.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn test_f1_predicted_empty_expected_nonempty() {
+    let expected = vec!["a".to_string()];
+    let (p, r, f1) = compute_f1(&[], &expected);
+    assert!((p - 0.0).abs() < f64::EPSILON);
+    assert!((r - 0.0).abs() < f64::EPSILON);
+    assert!((f1 - 0.0).abs() < f64::EPSILON);
+}
+
+#[test]
+fn test_f1_high_precision_low_recall() {
+    // predicted: {a}, expected: {a, b, c, d}
+    // TP=1, FP=0, FN=3 => P=1.0, R=0.25, F1=0.4
+    let predicted = vec!["a".to_string()];
+    let expected = vec![
+        "a".to_string(),
+        "b".to_string(),
+        "c".to_string(),
+        "d".to_string(),
+    ];
+    let (p, r, f1) = compute_f1(&predicted, &expected);
+    assert!((p - 1.0).abs() < 1e-9);
+    assert!((r - 0.25).abs() < 1e-9);
+    assert!((f1 - 0.4).abs() < 1e-9);
+}

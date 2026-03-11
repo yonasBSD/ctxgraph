@@ -1,0 +1,1999 @@
+[
+  {
+    "text": "Migrate user sessions from Redis to Postgres for better durability and ACID compliance. The AuthService now connects directly to the primary Postgres cluster.",
+    "expected_entities": [
+      {
+        "name": "Redis",
+        "entity_type": "Database",
+        "span_start": 27,
+        "span_end": 32
+      },
+      {
+        "name": "Postgres",
+        "entity_type": "Database",
+        "span_start": 36,
+        "span_end": 44
+      },
+      {
+        "name": "AuthService",
+        "entity_type": "Service",
+        "span_start": 92,
+        "span_end": 103
+      },
+      {
+        "name": "ACID",
+        "entity_type": "Constraint",
+        "span_start": 71,
+        "span_end": 75
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "AuthService",
+        "relation": "depends_on",
+        "tail": "Postgres"
+      },
+      {
+        "head": "Postgres",
+        "relation": "replaced",
+        "tail": "Redis"
+      }
+    ]
+  },
+  {
+    "text": "Add gRPC gateway in front of the PaymentService to handle rate limiting. This introduces Envoy as a sidecar proxy managed by Kubernetes.",
+    "expected_entities": [
+      {
+        "name": "PaymentService",
+        "entity_type": "Service",
+        "span_start": 33,
+        "span_end": 47
+      },
+      {
+        "name": "Envoy",
+        "entity_type": "Infrastructure",
+        "span_start": 89,
+        "span_end": 94
+      },
+      {
+        "name": "Kubernetes",
+        "entity_type": "Infrastructure",
+        "span_start": 125,
+        "span_end": 135
+      },
+      {
+        "name": "gRPC",
+        "entity_type": "Pattern",
+        "span_start": 4,
+        "span_end": 8
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Envoy",
+        "relation": "depends_on",
+        "tail": "Kubernetes"
+      },
+      {
+        "head": "PaymentService",
+        "relation": "constrained_by",
+        "tail": "Envoy"
+      }
+    ]
+  },
+  {
+    "text": "Rewrite the notification pipeline from Python to Rust for latency improvements. P99 latency dropped from 120ms to 8ms after the migration.",
+    "expected_entities": [
+      {
+        "name": "Python",
+        "entity_type": "Language",
+        "span_start": 39,
+        "span_end": 45
+      },
+      {
+        "name": "Rust",
+        "entity_type": "Language",
+        "span_start": 49,
+        "span_end": 53
+      },
+      {
+        "name": "P99",
+        "entity_type": "Metric",
+        "span_start": 80,
+        "span_end": 83
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Rust",
+        "relation": "replaced",
+        "tail": "Python"
+      },
+      {
+        "head": "Rust",
+        "relation": "introduced",
+        "tail": "P99"
+      }
+    ]
+  },
+  {
+    "text": "PR: Alice refactored the SearchService to use Elasticsearch instead of the legacy Solr index. Query throughput improved by 3x.",
+    "expected_entities": [
+      {
+        "name": "Alice",
+        "entity_type": "Person",
+        "span_start": 4,
+        "span_end": 9
+      },
+      {
+        "name": "SearchService",
+        "entity_type": "Service",
+        "span_start": 25,
+        "span_end": 38
+      },
+      {
+        "name": "Elasticsearch",
+        "entity_type": "Database",
+        "span_start": 46,
+        "span_end": 59
+      },
+      {
+        "name": "Solr",
+        "entity_type": "Database",
+        "span_start": 82,
+        "span_end": 86
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Alice",
+        "relation": "chose",
+        "tail": "Elasticsearch"
+      },
+      {
+        "head": "Elasticsearch",
+        "relation": "replaced",
+        "tail": "Solr"
+      },
+      {
+        "head": "SearchService",
+        "relation": "depends_on",
+        "tail": "Elasticsearch"
+      }
+    ]
+  },
+  {
+    "text": "Implement circuit breaker pattern in the OrderService to prevent cascading failures when InventoryService is down. Uses the Resilience4j library.",
+    "expected_entities": [
+      {
+        "name": "OrderService",
+        "entity_type": "Service",
+        "span_start": 41,
+        "span_end": 53
+      },
+      {
+        "name": "InventoryService",
+        "entity_type": "Service",
+        "span_start": 89,
+        "span_end": 105
+      },
+      {
+        "name": "Resilience4j",
+        "entity_type": "Component",
+        "span_start": 124,
+        "span_end": 136
+      },
+      {
+        "name": "circuit breaker",
+        "entity_type": "Pattern",
+        "span_start": 10,
+        "span_end": 25
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "OrderService",
+        "relation": "depends_on",
+        "tail": "InventoryService"
+      },
+      {
+        "head": "OrderService",
+        "relation": "introduced",
+        "tail": "circuit breaker"
+      }
+    ]
+  },
+  {
+    "text": "Enable TLS termination at the Nginx ingress controller. All traffic between the API Gateway and backend services is now encrypted.",
+    "expected_entities": [
+      {
+        "name": "Nginx",
+        "entity_type": "Infrastructure",
+        "span_start": 30,
+        "span_end": 35
+      },
+      {
+        "name": "TLS",
+        "entity_type": "Pattern",
+        "span_start": 7,
+        "span_end": 10
+      },
+      {
+        "name": "API Gateway",
+        "entity_type": "Component",
+        "span_start": 80,
+        "span_end": 91
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Nginx",
+        "relation": "introduced",
+        "tail": "TLS"
+      },
+      {
+        "head": "API Gateway",
+        "relation": "depends_on",
+        "tail": "Nginx"
+      }
+    ]
+  },
+  {
+    "text": "Bob deprecated the legacy SOAP endpoint in UserService and replaced it with a REST API. Clients have 90 days to migrate.",
+    "expected_entities": [
+      {
+        "name": "Bob",
+        "entity_type": "Person",
+        "span_start": 0,
+        "span_end": 3
+      },
+      {
+        "name": "SOAP",
+        "entity_type": "Pattern",
+        "span_start": 26,
+        "span_end": 30
+      },
+      {
+        "name": "UserService",
+        "entity_type": "Service",
+        "span_start": 43,
+        "span_end": 54
+      },
+      {
+        "name": "REST",
+        "entity_type": "Pattern",
+        "span_start": 78,
+        "span_end": 82
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Bob",
+        "relation": "deprecated",
+        "tail": "SOAP"
+      },
+      {
+        "head": "REST",
+        "relation": "replaced",
+        "tail": "SOAP"
+      }
+    ]
+  },
+  {
+    "text": "Add Prometheus metrics to the BillingService. CPU utilization and request latency are now scraped every 15 seconds by Grafana dashboards.",
+    "expected_entities": [
+      {
+        "name": "Prometheus",
+        "entity_type": "Infrastructure",
+        "span_start": 4,
+        "span_end": 14
+      },
+      {
+        "name": "BillingService",
+        "entity_type": "Service",
+        "span_start": 30,
+        "span_end": 44
+      },
+      {
+        "name": "CPU utilization",
+        "entity_type": "Metric",
+        "span_start": 46,
+        "span_end": 61
+      },
+      {
+        "name": "request latency",
+        "entity_type": "Metric",
+        "span_start": 66,
+        "span_end": 81
+      },
+      {
+        "name": "Grafana",
+        "entity_type": "Infrastructure",
+        "span_start": 118,
+        "span_end": 125
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "BillingService",
+        "relation": "introduced",
+        "tail": "Prometheus"
+      },
+      {
+        "head": "Grafana",
+        "relation": "depends_on",
+        "tail": "Prometheus"
+      }
+    ]
+  },
+  {
+    "text": "Migrate CI pipeline from Jenkins to GitHub Actions. Build times reduced from 45 minutes to 12 minutes. Docker layer caching enabled.",
+    "expected_entities": [
+      {
+        "name": "Jenkins",
+        "entity_type": "Infrastructure",
+        "span_start": 25,
+        "span_end": 32
+      },
+      {
+        "name": "GitHub Actions",
+        "entity_type": "Infrastructure",
+        "span_start": 36,
+        "span_end": 50
+      },
+      {
+        "name": "Docker",
+        "entity_type": "Infrastructure",
+        "span_start": 103,
+        "span_end": 109
+      },
+      {
+        "name": "Build times",
+        "entity_type": "Metric",
+        "span_start": 52,
+        "span_end": 63
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "GitHub Actions",
+        "relation": "replaced",
+        "tail": "Jenkins"
+      },
+      {
+        "head": "GitHub Actions",
+        "relation": "depends_on",
+        "tail": "Docker"
+      }
+    ]
+  },
+  {
+    "text": "PR: Introduce event sourcing pattern in the AuditService backed by Apache Kafka. Each domain event is persisted to a dedicated topic partition.",
+    "expected_entities": [
+      {
+        "name": "event sourcing",
+        "entity_type": "Pattern",
+        "span_start": 14,
+        "span_end": 28
+      },
+      {
+        "name": "AuditService",
+        "entity_type": "Service",
+        "span_start": 44,
+        "span_end": 56
+      },
+      {
+        "name": "Apache Kafka",
+        "entity_type": "Infrastructure",
+        "span_start": 67,
+        "span_end": 79
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "AuditService",
+        "relation": "introduced",
+        "tail": "event sourcing"
+      },
+      {
+        "head": "AuditService",
+        "relation": "depends_on",
+        "tail": "Apache Kafka"
+      }
+    ]
+  },
+  {
+    "text": "Replace MongoDB with CockroachDB for the geo-distributed AnalyticsService. Strong consistency is now guaranteed across all three regions.",
+    "expected_entities": [
+      {
+        "name": "MongoDB",
+        "entity_type": "Database",
+        "span_start": 8,
+        "span_end": 15
+      },
+      {
+        "name": "CockroachDB",
+        "entity_type": "Database",
+        "span_start": 21,
+        "span_end": 32
+      },
+      {
+        "name": "AnalyticsService",
+        "entity_type": "Service",
+        "span_start": 57,
+        "span_end": 73
+      },
+      {
+        "name": "Strong consistency",
+        "entity_type": "Constraint",
+        "span_start": 75,
+        "span_end": 93
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "CockroachDB",
+        "relation": "replaced",
+        "tail": "MongoDB"
+      },
+      {
+        "head": "AnalyticsService",
+        "relation": "depends_on",
+        "tail": "CockroachDB"
+      },
+      {
+        "head": "AnalyticsService",
+        "relation": "constrained_by",
+        "tail": "Strong consistency"
+      }
+    ]
+  },
+  {
+    "text": "Carol added OpenTelemetry tracing to the NotificationService. Distributed traces now flow through Jaeger for end-to-end visibility.",
+    "expected_entities": [
+      {
+        "name": "Carol",
+        "entity_type": "Person",
+        "span_start": 0,
+        "span_end": 5
+      },
+      {
+        "name": "OpenTelemetry",
+        "entity_type": "Component",
+        "span_start": 12,
+        "span_end": 25
+      },
+      {
+        "name": "NotificationService",
+        "entity_type": "Service",
+        "span_start": 41,
+        "span_end": 60
+      },
+      {
+        "name": "Jaeger",
+        "entity_type": "Infrastructure",
+        "span_start": 98,
+        "span_end": 104
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Carol",
+        "relation": "introduced",
+        "tail": "OpenTelemetry"
+      },
+      {
+        "head": "NotificationService",
+        "relation": "depends_on",
+        "tail": "Jaeger"
+      }
+    ]
+  },
+  {
+    "text": "Implement CQRS pattern: reads go to a read replica DynamoDB table while writes target the primary Aurora cluster. Eventual consistency accepted.",
+    "expected_entities": [
+      {
+        "name": "CQRS",
+        "entity_type": "Pattern",
+        "span_start": 10,
+        "span_end": 14
+      },
+      {
+        "name": "DynamoDB",
+        "entity_type": "Database",
+        "span_start": 51,
+        "span_end": 59
+      },
+      {
+        "name": "Aurora",
+        "entity_type": "Database",
+        "span_start": 98,
+        "span_end": 104
+      },
+      {
+        "name": "Eventual consistency",
+        "entity_type": "Constraint",
+        "span_start": 114,
+        "span_end": 134
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "CQRS",
+        "relation": "introduced",
+        "tail": "DynamoDB"
+      },
+      {
+        "head": "CQRS",
+        "relation": "depends_on",
+        "tail": "Aurora"
+      },
+      {
+        "head": "CQRS",
+        "relation": "constrained_by",
+        "tail": "Eventual consistency"
+      }
+    ]
+  },
+  {
+    "text": "PR: Dan removed the custom ORM layer in the CatalogService and switched to SQLAlchemy. This reduced boilerplate by 40 percent.",
+    "expected_entities": [
+      {
+        "name": "Dan",
+        "entity_type": "Person",
+        "span_start": 4,
+        "span_end": 7
+      },
+      {
+        "name": "ORM",
+        "entity_type": "Component",
+        "span_start": 27,
+        "span_end": 30
+      },
+      {
+        "name": "CatalogService",
+        "entity_type": "Service",
+        "span_start": 44,
+        "span_end": 58
+      },
+      {
+        "name": "SQLAlchemy",
+        "entity_type": "Component",
+        "span_start": 75,
+        "span_end": 85
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Dan",
+        "relation": "deprecated",
+        "tail": "ORM"
+      },
+      {
+        "head": "Dan",
+        "relation": "chose",
+        "tail": "SQLAlchemy"
+      },
+      {
+        "head": "CatalogService",
+        "relation": "depends_on",
+        "tail": "SQLAlchemy"
+      }
+    ]
+  },
+  {
+    "text": "Add Terraform modules for provisioning the staging environment on AWS. IAM roles scoped per microservice with least privilege.",
+    "expected_entities": [
+      {
+        "name": "Terraform",
+        "entity_type": "Infrastructure",
+        "span_start": 4,
+        "span_end": 13
+      },
+      {
+        "name": "AWS",
+        "entity_type": "Infrastructure",
+        "span_start": 66,
+        "span_end": 69
+      },
+      {
+        "name": "IAM",
+        "entity_type": "Component",
+        "span_start": 71,
+        "span_end": 74
+      },
+      {
+        "name": "least privilege",
+        "entity_type": "Constraint",
+        "span_start": 110,
+        "span_end": 125
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Terraform",
+        "relation": "depends_on",
+        "tail": "AWS"
+      },
+      {
+        "head": "IAM",
+        "relation": "constrained_by",
+        "tail": "least privilege"
+      }
+    ]
+  },
+  {
+    "text": "Eve introduced a feature flag system using LaunchDarkly in the CheckoutService. Canary releases are now possible without redeploying.",
+    "expected_entities": [
+      {
+        "name": "Eve",
+        "entity_type": "Person",
+        "span_start": 0,
+        "span_end": 3
+      },
+      {
+        "name": "LaunchDarkly",
+        "entity_type": "Component",
+        "span_start": 43,
+        "span_end": 55
+      },
+      {
+        "name": "CheckoutService",
+        "entity_type": "Service",
+        "span_start": 63,
+        "span_end": 78
+      },
+      {
+        "name": "Canary releases",
+        "entity_type": "Pattern",
+        "span_start": 80,
+        "span_end": 95
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Eve",
+        "relation": "introduced",
+        "tail": "LaunchDarkly"
+      },
+      {
+        "head": "CheckoutService",
+        "relation": "depends_on",
+        "tail": "LaunchDarkly"
+      },
+      {
+        "head": "Eve",
+        "relation": "introduced",
+        "tail": "Canary releases"
+      }
+    ]
+  },
+  {
+    "text": "Upgrade the RecommendationService from Java 11 to Java 21 for virtual threads support. GC pause times dropped to sub-millisecond.",
+    "expected_entities": [
+      {
+        "name": "RecommendationService",
+        "entity_type": "Service",
+        "span_start": 12,
+        "span_end": 33
+      },
+      {
+        "name": "Java",
+        "entity_type": "Language",
+        "span_start": 39,
+        "span_end": 43
+      },
+      {
+        "name": "virtual threads",
+        "entity_type": "Pattern",
+        "span_start": 62,
+        "span_end": 77
+      },
+      {
+        "name": "GC pause times",
+        "entity_type": "Metric",
+        "span_start": 87,
+        "span_end": 101
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "RecommendationService",
+        "relation": "introduced",
+        "tail": "virtual threads"
+      },
+      {
+        "head": "virtual threads",
+        "relation": "caused",
+        "tail": "GC pause times"
+      }
+    ]
+  },
+  {
+    "text": "PR: Replace RabbitMQ with NATS JetStream in the messaging layer. The EventBus component now supports exactly-once delivery semantics.",
+    "expected_entities": [
+      {
+        "name": "RabbitMQ",
+        "entity_type": "Infrastructure",
+        "span_start": 12,
+        "span_end": 20
+      },
+      {
+        "name": "NATS JetStream",
+        "entity_type": "Infrastructure",
+        "span_start": 26,
+        "span_end": 40
+      },
+      {
+        "name": "EventBus",
+        "entity_type": "Component",
+        "span_start": 69,
+        "span_end": 77
+      },
+      {
+        "name": "exactly-once delivery",
+        "entity_type": "Constraint",
+        "span_start": 101,
+        "span_end": 122
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "NATS JetStream",
+        "relation": "replaced",
+        "tail": "RabbitMQ"
+      },
+      {
+        "head": "EventBus",
+        "relation": "depends_on",
+        "tail": "NATS JetStream"
+      },
+      {
+        "head": "EventBus",
+        "relation": "constrained_by",
+        "tail": "exactly-once delivery"
+      }
+    ]
+  },
+  {
+    "text": "Frank added database connection pooling via PgBouncer to the AccountService. Max connections per pod capped at 20.",
+    "expected_entities": [
+      {
+        "name": "Frank",
+        "entity_type": "Person",
+        "span_start": 0,
+        "span_end": 5
+      },
+      {
+        "name": "PgBouncer",
+        "entity_type": "Component",
+        "span_start": 44,
+        "span_end": 53
+      },
+      {
+        "name": "AccountService",
+        "entity_type": "Service",
+        "span_start": 61,
+        "span_end": 75
+      },
+      {
+        "name": "Max connections",
+        "entity_type": "Metric",
+        "span_start": 77,
+        "span_end": 92
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Frank",
+        "relation": "introduced",
+        "tail": "PgBouncer"
+      },
+      {
+        "head": "AccountService",
+        "relation": "depends_on",
+        "tail": "PgBouncer"
+      }
+    ]
+  },
+  {
+    "text": "Implement GraphQL federation gateway using Apollo Router. The ProductService and PricingService schemas are now stitched at the edge.",
+    "expected_entities": [
+      {
+        "name": "GraphQL",
+        "entity_type": "Pattern",
+        "span_start": 10,
+        "span_end": 17
+      },
+      {
+        "name": "Apollo Router",
+        "entity_type": "Component",
+        "span_start": 43,
+        "span_end": 56
+      },
+      {
+        "name": "ProductService",
+        "entity_type": "Service",
+        "span_start": 62,
+        "span_end": 76
+      },
+      {
+        "name": "PricingService",
+        "entity_type": "Service",
+        "span_start": 81,
+        "span_end": 95
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Apollo Router",
+        "relation": "introduced",
+        "tail": "GraphQL"
+      },
+      {
+        "head": "ProductService",
+        "relation": "depends_on",
+        "tail": "Apollo Router"
+      },
+      {
+        "head": "PricingService",
+        "relation": "depends_on",
+        "tail": "Apollo Router"
+      }
+    ]
+  },
+  {
+    "text": "fix: resolve deadlock in ConnectionPool when Postgres failover triggers under high load",
+    "expected_entities": [
+      {
+        "name": "ConnectionPool",
+        "entity_type": "Component",
+        "span_start": 25,
+        "span_end": 39
+      },
+      {
+        "name": "Postgres",
+        "entity_type": "Database",
+        "span_start": 45,
+        "span_end": 53
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "ConnectionPool",
+        "relation": "depends_on",
+        "tail": "Postgres"
+      }
+    ]
+  },
+  {
+    "text": "feat: add Redis caching layer to the SessionManager component reducing p50 latency from 30ms to 2ms",
+    "expected_entities": [
+      {
+        "name": "Redis",
+        "entity_type": "Database",
+        "span_start": 10,
+        "span_end": 15
+      },
+      {
+        "name": "SessionManager",
+        "entity_type": "Component",
+        "span_start": 37,
+        "span_end": 51
+      },
+      {
+        "name": "p50 latency",
+        "entity_type": "Metric",
+        "span_start": 71,
+        "span_end": 82
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "SessionManager",
+        "relation": "depends_on",
+        "tail": "Redis"
+      },
+      {
+        "head": "Redis",
+        "relation": "caused",
+        "tail": "p50 latency"
+      }
+    ]
+  },
+  {
+    "text": "refactor: Grace extracted the validation logic from ShippingService into a standalone Validator component written in TypeScript",
+    "expected_entities": [
+      {
+        "name": "Grace",
+        "entity_type": "Person",
+        "span_start": 10,
+        "span_end": 15
+      },
+      {
+        "name": "ShippingService",
+        "entity_type": "Service",
+        "span_start": 52,
+        "span_end": 67
+      },
+      {
+        "name": "Validator",
+        "entity_type": "Component",
+        "span_start": 86,
+        "span_end": 95
+      },
+      {
+        "name": "TypeScript",
+        "entity_type": "Language",
+        "span_start": 117,
+        "span_end": 127
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Grace",
+        "relation": "introduced",
+        "tail": "Validator"
+      },
+      {
+        "head": "Validator",
+        "relation": "depends_on",
+        "tail": "TypeScript"
+      }
+    ]
+  },
+  {
+    "text": "fix: patch SQL injection vulnerability in the QueryBuilder used by ReportService against MySQL",
+    "expected_entities": [
+      {
+        "name": "QueryBuilder",
+        "entity_type": "Component",
+        "span_start": 46,
+        "span_end": 58
+      },
+      {
+        "name": "ReportService",
+        "entity_type": "Service",
+        "span_start": 67,
+        "span_end": 80
+      },
+      {
+        "name": "MySQL",
+        "entity_type": "Database",
+        "span_start": 89,
+        "span_end": 94
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "ReportService",
+        "relation": "depends_on",
+        "tail": "QueryBuilder"
+      },
+      {
+        "head": "QueryBuilder",
+        "relation": "fixed",
+        "tail": "MySQL"
+      }
+    ]
+  },
+  {
+    "text": "chore: upgrade Helm charts for the ArgoCD deployment pipeline running on EKS",
+    "expected_entities": [
+      {
+        "name": "Helm",
+        "entity_type": "Infrastructure",
+        "span_start": 15,
+        "span_end": 19
+      },
+      {
+        "name": "ArgoCD",
+        "entity_type": "Infrastructure",
+        "span_start": 35,
+        "span_end": 41
+      },
+      {
+        "name": "EKS",
+        "entity_type": "Infrastructure",
+        "span_start": 73,
+        "span_end": 76
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "ArgoCD",
+        "relation": "depends_on",
+        "tail": "EKS"
+      },
+      {
+        "head": "ArgoCD",
+        "relation": "depends_on",
+        "tail": "Helm"
+      }
+    ]
+  },
+  {
+    "text": "feat: Henry added WebSocket support to the GatewayService for real-time collaboration features",
+    "expected_entities": [
+      {
+        "name": "Henry",
+        "entity_type": "Person",
+        "span_start": 6,
+        "span_end": 11
+      },
+      {
+        "name": "WebSocket",
+        "entity_type": "Pattern",
+        "span_start": 18,
+        "span_end": 27
+      },
+      {
+        "name": "GatewayService",
+        "entity_type": "Service",
+        "span_start": 43,
+        "span_end": 57
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Henry",
+        "relation": "introduced",
+        "tail": "WebSocket"
+      },
+      {
+        "head": "GatewayService",
+        "relation": "introduced",
+        "tail": "WebSocket"
+      }
+    ]
+  },
+  {
+    "text": "fix: correct memory leak in the ImageProcessor caused by unbounded buffer growth in Go goroutines",
+    "expected_entities": [
+      {
+        "name": "ImageProcessor",
+        "entity_type": "Component",
+        "span_start": 32,
+        "span_end": 46
+      },
+      {
+        "name": "Go",
+        "entity_type": "Language",
+        "span_start": 84,
+        "span_end": 86
+      },
+      {
+        "name": "memory leak",
+        "entity_type": "Metric",
+        "span_start": 13,
+        "span_end": 24
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "ImageProcessor",
+        "relation": "fixed",
+        "tail": "memory leak"
+      },
+      {
+        "head": "ImageProcessor",
+        "relation": "depends_on",
+        "tail": "Go"
+      }
+    ]
+  },
+  {
+    "text": "feat: integrate Vault for secret management in the DeploymentService replacing hardcoded environment variables",
+    "expected_entities": [
+      {
+        "name": "Vault",
+        "entity_type": "Infrastructure",
+        "span_start": 16,
+        "span_end": 21
+      },
+      {
+        "name": "DeploymentService",
+        "entity_type": "Service",
+        "span_start": 51,
+        "span_end": 68
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "DeploymentService",
+        "relation": "depends_on",
+        "tail": "Vault"
+      }
+    ]
+  },
+  {
+    "text": "refactor: Irene replaced the synchronous RPC calls in the FulfillmentService with async message passing via SQS",
+    "expected_entities": [
+      {
+        "name": "Irene",
+        "entity_type": "Person",
+        "span_start": 10,
+        "span_end": 15
+      },
+      {
+        "name": "FulfillmentService",
+        "entity_type": "Service",
+        "span_start": 58,
+        "span_end": 76
+      },
+      {
+        "name": "SQS",
+        "entity_type": "Infrastructure",
+        "span_start": 108,
+        "span_end": 111
+      },
+      {
+        "name": "RPC",
+        "entity_type": "Pattern",
+        "span_start": 41,
+        "span_end": 44
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Irene",
+        "relation": "deprecated",
+        "tail": "RPC"
+      },
+      {
+        "head": "FulfillmentService",
+        "relation": "depends_on",
+        "tail": "SQS"
+      },
+      {
+        "head": "SQS",
+        "relation": "replaced",
+        "tail": "RPC"
+      }
+    ]
+  },
+  {
+    "text": "fix: resolve race condition in the Scheduler component that caused duplicate cron job execution in the Kotlin runtime",
+    "expected_entities": [
+      {
+        "name": "Scheduler",
+        "entity_type": "Component",
+        "span_start": 35,
+        "span_end": 44
+      },
+      {
+        "name": "Kotlin",
+        "entity_type": "Language",
+        "span_start": 103,
+        "span_end": 109
+      },
+      {
+        "name": "race condition",
+        "entity_type": "Metric",
+        "span_start": 13,
+        "span_end": 27
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Scheduler",
+        "relation": "fixed",
+        "tail": "race condition"
+      },
+      {
+        "head": "Scheduler",
+        "relation": "depends_on",
+        "tail": "Kotlin"
+      }
+    ]
+  },
+  {
+    "text": "feat: add SQLite-based local cache to the OfflineSync component for mobile clients",
+    "expected_entities": [
+      {
+        "name": "SQLite",
+        "entity_type": "Database",
+        "span_start": 10,
+        "span_end": 16
+      },
+      {
+        "name": "OfflineSync",
+        "entity_type": "Component",
+        "span_start": 42,
+        "span_end": 53
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "OfflineSync",
+        "relation": "depends_on",
+        "tail": "SQLite"
+      }
+    ]
+  },
+  {
+    "text": "chore: Jack migrated the LogAggregator from Fluentd to Vector for better throughput and lower resource usage",
+    "expected_entities": [
+      {
+        "name": "Jack",
+        "entity_type": "Person",
+        "span_start": 7,
+        "span_end": 11
+      },
+      {
+        "name": "LogAggregator",
+        "entity_type": "Component",
+        "span_start": 25,
+        "span_end": 38
+      },
+      {
+        "name": "Fluentd",
+        "entity_type": "Infrastructure",
+        "span_start": 44,
+        "span_end": 51
+      },
+      {
+        "name": "Vector",
+        "entity_type": "Infrastructure",
+        "span_start": 55,
+        "span_end": 61
+      },
+      {
+        "name": "throughput",
+        "entity_type": "Metric",
+        "span_start": 73,
+        "span_end": 83
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Jack",
+        "relation": "chose",
+        "tail": "Vector"
+      },
+      {
+        "head": "Vector",
+        "relation": "replaced",
+        "tail": "Fluentd"
+      },
+      {
+        "head": "LogAggregator",
+        "relation": "depends_on",
+        "tail": "Vector"
+      }
+    ]
+  },
+  {
+    "text": "feat: implement retry with exponential backoff in the WebhookDispatcher connecting to external partner APIs",
+    "expected_entities": [
+      {
+        "name": "exponential backoff",
+        "entity_type": "Pattern",
+        "span_start": 27,
+        "span_end": 46
+      },
+      {
+        "name": "WebhookDispatcher",
+        "entity_type": "Component",
+        "span_start": 54,
+        "span_end": 71
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "WebhookDispatcher",
+        "relation": "introduced",
+        "tail": "exponential backoff"
+      }
+    ]
+  },
+  {
+    "text": "fix: Karen fixed the broken OAuth2 token refresh flow in the IdentityProvider service affecting downstream consumers",
+    "expected_entities": [
+      {
+        "name": "Karen",
+        "entity_type": "Person",
+        "span_start": 5,
+        "span_end": 10
+      },
+      {
+        "name": "OAuth2",
+        "entity_type": "Pattern",
+        "span_start": 28,
+        "span_end": 34
+      },
+      {
+        "name": "IdentityProvider",
+        "entity_type": "Service",
+        "span_start": 61,
+        "span_end": 77
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Karen",
+        "relation": "fixed",
+        "tail": "OAuth2"
+      },
+      {
+        "head": "IdentityProvider",
+        "relation": "depends_on",
+        "tail": "OAuth2"
+      }
+    ]
+  },
+  {
+    "text": "refactor: convert the DataPipeline from batch processing to streaming using Apache Flink with exactly-once guarantees",
+    "expected_entities": [
+      {
+        "name": "DataPipeline",
+        "entity_type": "Component",
+        "span_start": 22,
+        "span_end": 34
+      },
+      {
+        "name": "Apache Flink",
+        "entity_type": "Infrastructure",
+        "span_start": 76,
+        "span_end": 88
+      },
+      {
+        "name": "exactly-once guarantees",
+        "entity_type": "Constraint",
+        "span_start": 94,
+        "span_end": 117
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "DataPipeline",
+        "relation": "depends_on",
+        "tail": "Apache Flink"
+      },
+      {
+        "head": "DataPipeline",
+        "relation": "constrained_by",
+        "tail": "exactly-once guarantees"
+      }
+    ]
+  },
+  {
+    "text": "ADR-001: The platform team chose PostgreSQL as the primary datastore for the TenantService. DynamoDB was rejected due to lack of relational query support.",
+    "expected_entities": [
+      {
+        "name": "PostgreSQL",
+        "entity_type": "Database",
+        "span_start": 33,
+        "span_end": 43
+      },
+      {
+        "name": "TenantService",
+        "entity_type": "Service",
+        "span_start": 77,
+        "span_end": 90
+      },
+      {
+        "name": "DynamoDB",
+        "entity_type": "Database",
+        "span_start": 92,
+        "span_end": 100
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "TenantService",
+        "relation": "chose",
+        "tail": "PostgreSQL"
+      },
+      {
+        "head": "TenantService",
+        "relation": "rejected",
+        "tail": "DynamoDB"
+      }
+    ]
+  },
+  {
+    "text": "ADR-002: Leo decided to adopt the strangler fig pattern for migrating the Monolith to microservices. The API Gateway will route traffic progressively.",
+    "expected_entities": [
+      {
+        "name": "Leo",
+        "entity_type": "Person",
+        "span_start": 9,
+        "span_end": 12
+      },
+      {
+        "name": "strangler fig",
+        "entity_type": "Pattern",
+        "span_start": 34,
+        "span_end": 47
+      },
+      {
+        "name": "Monolith",
+        "entity_type": "Component",
+        "span_start": 74,
+        "span_end": 82
+      },
+      {
+        "name": "API Gateway",
+        "entity_type": "Component",
+        "span_start": 105,
+        "span_end": 116
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Leo",
+        "relation": "chose",
+        "tail": "strangler fig"
+      },
+      {
+        "head": "API Gateway",
+        "relation": "introduced",
+        "tail": "strangler fig"
+      },
+      {
+        "head": "strangler fig",
+        "relation": "deprecated",
+        "tail": "Monolith"
+      }
+    ]
+  },
+  {
+    "text": "ADR-003: All services must comply with the 100ms SLA at the p99 level. Services exceeding this budget will be flagged by the SLO Dashboard.",
+    "expected_entities": [
+      {
+        "name": "100ms SLA",
+        "entity_type": "Constraint",
+        "span_start": 43,
+        "span_end": 52
+      },
+      {
+        "name": "p99",
+        "entity_type": "Metric",
+        "span_start": 60,
+        "span_end": 63
+      },
+      {
+        "name": "SLO Dashboard",
+        "entity_type": "Component",
+        "span_start": 125,
+        "span_end": 138
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "SLO Dashboard",
+        "relation": "constrained_by",
+        "tail": "100ms SLA"
+      }
+    ]
+  },
+  {
+    "text": "ADR-004: The infrastructure team rejected Nomad in favor of Kubernetes for container orchestration. Helm will be the package manager for all deployments.",
+    "expected_entities": [
+      {
+        "name": "Nomad",
+        "entity_type": "Infrastructure",
+        "span_start": 42,
+        "span_end": 47
+      },
+      {
+        "name": "Kubernetes",
+        "entity_type": "Infrastructure",
+        "span_start": 60,
+        "span_end": 70
+      },
+      {
+        "name": "Helm",
+        "entity_type": "Infrastructure",
+        "span_start": 100,
+        "span_end": 104
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Kubernetes",
+        "relation": "replaced",
+        "tail": "Nomad"
+      },
+      {
+        "head": "Kubernetes",
+        "relation": "depends_on",
+        "tail": "Helm"
+      }
+    ]
+  },
+  {
+    "text": "ADR-005: Maria chose Rust over C++ for the new CodecEngine component due to memory safety guarantees and zero-cost abstractions.",
+    "expected_entities": [
+      {
+        "name": "Maria",
+        "entity_type": "Person",
+        "span_start": 9,
+        "span_end": 14
+      },
+      {
+        "name": "Rust",
+        "entity_type": "Language",
+        "span_start": 21,
+        "span_end": 25
+      },
+      {
+        "name": "C++",
+        "entity_type": "Language",
+        "span_start": 31,
+        "span_end": 34
+      },
+      {
+        "name": "CodecEngine",
+        "entity_type": "Component",
+        "span_start": 47,
+        "span_end": 58
+      },
+      {
+        "name": "memory safety",
+        "entity_type": "Constraint",
+        "span_start": 76,
+        "span_end": 89
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Maria",
+        "relation": "chose",
+        "tail": "Rust"
+      },
+      {
+        "head": "Maria",
+        "relation": "rejected",
+        "tail": "C++"
+      },
+      {
+        "head": "CodecEngine",
+        "relation": "constrained_by",
+        "tail": "memory safety"
+      }
+    ]
+  },
+  {
+    "text": "ADR-006: The data team decided that all ETL jobs will run on Apache Spark. Pandas-based scripts are deprecated as they cannot handle the 500GB daily volume.",
+    "expected_entities": [
+      {
+        "name": "Apache Spark",
+        "entity_type": "Infrastructure",
+        "span_start": 61,
+        "span_end": 73
+      },
+      {
+        "name": "Pandas",
+        "entity_type": "Component",
+        "span_start": 75,
+        "span_end": 81
+      },
+      {
+        "name": "500GB daily volume",
+        "entity_type": "Constraint",
+        "span_start": 137,
+        "span_end": 155
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Apache Spark",
+        "relation": "replaced",
+        "tail": "Pandas"
+      },
+      {
+        "head": "Apache Spark",
+        "relation": "constrained_by",
+        "tail": "500GB daily volume"
+      },
+      {
+        "head": "Apache Spark",
+        "relation": "deprecated",
+        "tail": "Pandas"
+      }
+    ]
+  },
+  {
+    "text": "ADR-007: Nathan proposed adopting the saga pattern for distributed transactions across the OrderService, PaymentService, and ShippingService.",
+    "expected_entities": [
+      {
+        "name": "Nathan",
+        "entity_type": "Person",
+        "span_start": 9,
+        "span_end": 15
+      },
+      {
+        "name": "saga pattern",
+        "entity_type": "Pattern",
+        "span_start": 38,
+        "span_end": 50
+      },
+      {
+        "name": "OrderService",
+        "entity_type": "Service",
+        "span_start": 91,
+        "span_end": 103
+      },
+      {
+        "name": "PaymentService",
+        "entity_type": "Service",
+        "span_start": 105,
+        "span_end": 119
+      },
+      {
+        "name": "ShippingService",
+        "entity_type": "Service",
+        "span_start": 125,
+        "span_end": 140
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Nathan",
+        "relation": "chose",
+        "tail": "saga pattern"
+      },
+      {
+        "head": "OrderService",
+        "relation": "introduced",
+        "tail": "saga pattern"
+      }
+    ]
+  },
+  {
+    "text": "ADR-008: Database schema changes must go through Flyway migrations. Manual DDL is forbidden. The compliance constraint requires full audit trails.",
+    "expected_entities": [
+      {
+        "name": "Flyway",
+        "entity_type": "Component",
+        "span_start": 49,
+        "span_end": 55
+      },
+      {
+        "name": "DDL",
+        "entity_type": "Decision",
+        "span_start": 75,
+        "span_end": 78
+      },
+      {
+        "name": "compliance",
+        "entity_type": "Constraint",
+        "span_start": 97,
+        "span_end": 107
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Flyway",
+        "relation": "constrained_by",
+        "tail": "compliance"
+      },
+      {
+        "head": "DDL",
+        "relation": "constrained_by",
+        "tail": "compliance"
+      }
+    ]
+  },
+  {
+    "text": "ADR-009: Olivia decided to use Cloudflare Workers at the edge for the CDN layer. Latency from Asia-Pacific users reduced by 60 percent as measured by TTFB.",
+    "expected_entities": [
+      {
+        "name": "Olivia",
+        "entity_type": "Person",
+        "span_start": 9,
+        "span_end": 15
+      },
+      {
+        "name": "Cloudflare Workers",
+        "entity_type": "Infrastructure",
+        "span_start": 31,
+        "span_end": 49
+      },
+      {
+        "name": "CDN",
+        "entity_type": "Component",
+        "span_start": 70,
+        "span_end": 73
+      },
+      {
+        "name": "TTFB",
+        "entity_type": "Metric",
+        "span_start": 150,
+        "span_end": 154
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Olivia",
+        "relation": "chose",
+        "tail": "Cloudflare Workers"
+      },
+      {
+        "head": "CDN",
+        "relation": "depends_on",
+        "tail": "Cloudflare Workers"
+      },
+      {
+        "head": "Cloudflare Workers",
+        "relation": "caused",
+        "tail": "TTFB"
+      }
+    ]
+  },
+  {
+    "text": "ADR-010: The security team mandated mTLS between all internal services. Istio service mesh was chosen to enforce this zero-trust constraint.",
+    "expected_entities": [
+      {
+        "name": "mTLS",
+        "entity_type": "Pattern",
+        "span_start": 36,
+        "span_end": 40
+      },
+      {
+        "name": "Istio",
+        "entity_type": "Infrastructure",
+        "span_start": 72,
+        "span_end": 77
+      },
+      {
+        "name": "zero-trust",
+        "entity_type": "Constraint",
+        "span_start": 118,
+        "span_end": 128
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Istio",
+        "relation": "introduced",
+        "tail": "mTLS"
+      },
+      {
+        "head": "Istio",
+        "relation": "constrained_by",
+        "tail": "zero-trust"
+      }
+    ]
+  },
+  {
+    "text": "Issue #142: The SchedulerService crashes when the TimescaleDB connection is lost. Pete identified a missing retry in the HealthCheck component.",
+    "expected_entities": [
+      {
+        "name": "SchedulerService",
+        "entity_type": "Service",
+        "span_start": 16,
+        "span_end": 32
+      },
+      {
+        "name": "TimescaleDB",
+        "entity_type": "Database",
+        "span_start": 50,
+        "span_end": 61
+      },
+      {
+        "name": "Pete",
+        "entity_type": "Person",
+        "span_start": 82,
+        "span_end": 86
+      },
+      {
+        "name": "HealthCheck",
+        "entity_type": "Component",
+        "span_start": 121,
+        "span_end": 132
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "SchedulerService",
+        "relation": "depends_on",
+        "tail": "TimescaleDB"
+      },
+      {
+        "head": "Pete",
+        "relation": "fixed",
+        "tail": "HealthCheck"
+      }
+    ]
+  },
+  {
+    "text": "Issue #287: Error rate spiked to 15 percent after the Cassandra upgrade in the EventStore. Quinn traced the cause to a schema migration that broke backward compatibility.",
+    "expected_entities": [
+      {
+        "name": "Error rate",
+        "entity_type": "Metric",
+        "span_start": 12,
+        "span_end": 22
+      },
+      {
+        "name": "Cassandra",
+        "entity_type": "Database",
+        "span_start": 54,
+        "span_end": 63
+      },
+      {
+        "name": "EventStore",
+        "entity_type": "Component",
+        "span_start": 79,
+        "span_end": 89
+      },
+      {
+        "name": "Quinn",
+        "entity_type": "Person",
+        "span_start": 91,
+        "span_end": 96
+      },
+      {
+        "name": "backward compatibility",
+        "entity_type": "Constraint",
+        "span_start": 147,
+        "span_end": 169
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "Cassandra",
+        "relation": "caused",
+        "tail": "Error rate"
+      },
+      {
+        "head": "Quinn",
+        "relation": "fixed",
+        "tail": "EventStore"
+      },
+      {
+        "head": "EventStore",
+        "relation": "constrained_by",
+        "tail": "backward compatibility"
+      }
+    ]
+  },
+  {
+    "text": "Issue #503: The TokenService is leaking file descriptors when running on Alpine Linux. Rachel confirmed the issue is caused by a known musl libc bug.",
+    "expected_entities": [
+      {
+        "name": "TokenService",
+        "entity_type": "Service",
+        "span_start": 16,
+        "span_end": 28
+      },
+      {
+        "name": "Alpine Linux",
+        "entity_type": "Infrastructure",
+        "span_start": 73,
+        "span_end": 85
+      },
+      {
+        "name": "Rachel",
+        "entity_type": "Person",
+        "span_start": 87,
+        "span_end": 93
+      },
+      {
+        "name": "file descriptors",
+        "entity_type": "Metric",
+        "span_start": 40,
+        "span_end": 56
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "TokenService",
+        "relation": "depends_on",
+        "tail": "Alpine Linux"
+      },
+      {
+        "head": "Alpine Linux",
+        "relation": "caused",
+        "tail": "file descriptors"
+      }
+    ]
+  },
+  {
+    "text": "Issue #721: Sam reported that the ConfigService fails to sync when Consul is partitioned. The team decided to add a local fallback using etcd.",
+    "expected_entities": [
+      {
+        "name": "Sam",
+        "entity_type": "Person",
+        "span_start": 12,
+        "span_end": 15
+      },
+      {
+        "name": "ConfigService",
+        "entity_type": "Service",
+        "span_start": 34,
+        "span_end": 47
+      },
+      {
+        "name": "Consul",
+        "entity_type": "Infrastructure",
+        "span_start": 67,
+        "span_end": 73
+      },
+      {
+        "name": "etcd",
+        "entity_type": "Infrastructure",
+        "span_start": 137,
+        "span_end": 141
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "ConfigService",
+        "relation": "depends_on",
+        "tail": "Consul"
+      },
+      {
+        "head": "etcd",
+        "relation": "replaced",
+        "tail": "Consul"
+      },
+      {
+        "head": "Sam",
+        "relation": "chose",
+        "tail": "etcd"
+      }
+    ]
+  },
+  {
+    "text": "Issue #999: Tina observed that the RateLimiter in the IngressController drops valid requests when the sliding window counter in Redis exceeds the 10000 QPS threshold.",
+    "expected_entities": [
+      {
+        "name": "Tina",
+        "entity_type": "Person",
+        "span_start": 12,
+        "span_end": 16
+      },
+      {
+        "name": "RateLimiter",
+        "entity_type": "Component",
+        "span_start": 35,
+        "span_end": 46
+      },
+      {
+        "name": "IngressController",
+        "entity_type": "Component",
+        "span_start": 54,
+        "span_end": 71
+      },
+      {
+        "name": "Redis",
+        "entity_type": "Database",
+        "span_start": 128,
+        "span_end": 133
+      },
+      {
+        "name": "10000 QPS",
+        "entity_type": "Constraint",
+        "span_start": 146,
+        "span_end": 155
+      },
+      {
+        "name": "sliding window",
+        "entity_type": "Pattern",
+        "span_start": 102,
+        "span_end": 116
+      }
+    ],
+    "expected_relations": [
+      {
+        "head": "RateLimiter",
+        "relation": "depends_on",
+        "tail": "Redis"
+      },
+      {
+        "head": "IngressController",
+        "relation": "depends_on",
+        "tail": "RateLimiter"
+      },
+      {
+        "head": "RateLimiter",
+        "relation": "constrained_by",
+        "tail": "10000 QPS"
+      }
+    ]
+  }
+]

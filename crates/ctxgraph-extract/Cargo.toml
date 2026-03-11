@@ -1,0 +1,22 @@
+[package]
+name = "ctxgraph-extract"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Extraction pipeline for ctxgraph — NER, relations, temporal parsing"
+
+[dependencies]
+chrono = { workspace = true }
+regex = "1"
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+sha2 = "0.10"
+reqwest = { version = "0.12", features = ["blocking"] }
+indicatif = "0.17"
+dirs = "6"
+
+[dev-dependencies]
+tempfile = "3"
+sha2 = "0.10"
