@@ -8,16 +8,16 @@ pub mod stats;
 use std::env;
 use std::path::PathBuf;
 
-use ctxgraph_core::Graph;
+use ctxgraph::Graph;
 
 /// Find and open the nearest .ctxgraph/graph.db, searching up from cwd.
-pub fn open_graph() -> ctxgraph_core::Result<Graph> {
+pub fn open_graph() -> ctxgraph::Result<Graph> {
     let db_path = find_db()?;
     Graph::open(&db_path)
 }
 
-fn find_db() -> ctxgraph_core::Result<PathBuf> {
-    let mut dir = env::current_dir().map_err(ctxgraph_core::CtxGraphError::Io)?;
+fn find_db() -> ctxgraph::Result<PathBuf> {
+    let mut dir = env::current_dir().map_err(ctxgraph::CtxGraphError::Io)?;
 
     loop {
         let candidate = dir.join(".ctxgraph").join("graph.db");
@@ -29,7 +29,7 @@ fn find_db() -> ctxgraph_core::Result<PathBuf> {
         }
     }
 
-    Err(ctxgraph_core::CtxGraphError::NotFound(
+    Err(ctxgraph::CtxGraphError::NotFound(
         "no .ctxgraph/ found in current or parent directories. Run `ctxgraph init` first."
             .to_string(),
     ))

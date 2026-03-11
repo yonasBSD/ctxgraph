@@ -1,5 +1,5 @@
 use chrono::Utc;
-use ctxgraph_core::*;
+use ctxgraph::*;
 
 fn test_graph() -> Graph {
     Graph::in_memory().expect("failed to create in-memory graph")
@@ -374,9 +374,9 @@ fn test_migrations_idempotent() {
     let db_path = tmp.path().join("test.db");
 
     // Open twice — migrations should not fail on second open
-    let _storage = ctxgraph_core::storage::Storage::open(&db_path).unwrap();
+    let _storage = ctxgraph::storage::Storage::open(&db_path).unwrap();
     drop(_storage);
-    let _storage = ctxgraph_core::storage::Storage::open(&db_path).unwrap();
+    let _storage = ctxgraph::storage::Storage::open(&db_path).unwrap();
 }
 
 // ── Empty Database ──

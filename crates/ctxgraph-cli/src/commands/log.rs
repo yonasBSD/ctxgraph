@@ -1,4 +1,4 @@
-use ctxgraph_core::Episode;
+use ctxgraph::Episode;
 
 use super::open_graph;
 
@@ -6,7 +6,7 @@ pub fn run(
     text: String,
     source: Option<String>,
     tags: Option<String>,
-) -> ctxgraph_core::Result<()> {
+) -> ctxgraph::Result<()> {
     let graph = open_graph()?;
 
     let mut builder = Episode::builder(&text);

@@ -1,9 +1,9 @@
 use std::env;
 
-use ctxgraph_core::Graph;
+use ctxgraph::Graph;
 
-pub fn run(name: Option<String>) -> ctxgraph_core::Result<()> {
-    let dir = env::current_dir().map_err(ctxgraph_core::CtxGraphError::Io)?;
+pub fn run(name: Option<String>) -> ctxgraph::Result<()> {
+    let dir = env::current_dir().map_err(ctxgraph::CtxGraphError::Io)?;
     let _graph = Graph::init(&dir)?;
 
     let project_name = name.unwrap_or_else(|| {

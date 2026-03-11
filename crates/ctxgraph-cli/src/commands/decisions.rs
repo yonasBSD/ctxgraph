@@ -6,7 +6,7 @@ pub fn list(
     _after: Option<String>,
     _source: Option<String>,
     limit: usize,
-) -> ctxgraph_core::Result<()> {
+) -> ctxgraph::Result<()> {
     let graph = open_graph()?;
     let episodes = graph.list_episodes(limit, 0)?;
 
@@ -28,12 +28,12 @@ pub fn list(
     Ok(())
 }
 
-pub fn show(id: String) -> ctxgraph_core::Result<()> {
+pub fn show(id: String) -> ctxgraph::Result<()> {
     let graph = open_graph()?;
 
     let episode = graph.get_episode(&id)?;
     let Some(episode) = episode else {
-        return Err(ctxgraph_core::CtxGraphError::NotFound(format!(
+        return Err(ctxgraph::CtxGraphError::NotFound(format!(
             "episode '{id}'"
         )));
     };

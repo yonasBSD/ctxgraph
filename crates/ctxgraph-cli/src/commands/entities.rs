@@ -2,7 +2,7 @@ use crate::display;
 
 use super::open_graph;
 
-pub fn list(entity_type: Option<String>, limit: usize) -> ctxgraph_core::Result<()> {
+pub fn list(entity_type: Option<String>, limit: usize) -> ctxgraph::Result<()> {
     let graph = open_graph()?;
     let entities = graph.list_entities(entity_type.as_deref(), limit)?;
 
@@ -24,7 +24,7 @@ pub fn list(entity_type: Option<String>, limit: usize) -> ctxgraph_core::Result<
     Ok(())
 }
 
-pub fn show(id: String) -> ctxgraph_core::Result<()> {
+pub fn show(id: String) -> ctxgraph::Result<()> {
     let graph = open_graph()?;
 
     // Try by ID first, then by name
@@ -33,7 +33,7 @@ pub fn show(id: String) -> ctxgraph_core::Result<()> {
         .or(graph.get_entity_by_name(&id)?);
 
     let Some(entity) = entity else {
-        return Err(ctxgraph_core::CtxGraphError::NotFound(format!(
+        return Err(ctxgraph::CtxGraphError::NotFound(format!(
             "entity '{id}'"
         )));
     };

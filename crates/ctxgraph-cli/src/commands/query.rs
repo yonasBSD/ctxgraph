@@ -7,7 +7,7 @@ pub fn run(
     limit: usize,
     _after: Option<String>,
     _source: Option<String>,
-) -> ctxgraph_core::Result<()> {
+) -> ctxgraph::Result<()> {
     let graph = open_graph()?;
     let results = graph.search(&text, limit)?;
 

@@ -1,6 +1,6 @@
 use super::open_graph;
 
-pub fn run() -> ctxgraph_core::Result<()> {
+pub fn run() -> ctxgraph::Result<()> {
     let graph = open_graph()?;
     let stats = graph.stats()?;
 

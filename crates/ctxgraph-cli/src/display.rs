@@ -1,4 +1,4 @@
-use ctxgraph_core::{EntityContext, Episode, Entity};
+use ctxgraph::{EntityContext, Episode, Entity};
 
 pub fn print_episode(episode: &Episode, score: Option<f64>) {
     let id_short = &episode.id[..8.min(episode.id.len())];
