@@ -154,12 +154,20 @@ fn find_ner_model(models_dir: &Path) -> Result<PathBuf, PipelineError> {
     })
 }
 
-/// Find the relation extraction model (multitask GLiNER).
+/// Find the relation extraction model (token-level multitask GLiNER).
+///
+/// NOTE: gline-rs RelationPipeline requires a **token-level** model (4 inputs:
+/// input_ids, attention_mask, words_mask, text_lengths). Span-level models like
+/// `gliner_multi-v2.1` are NOT compatible and must not be listed here.
+///
+/// The only known compatible model is `knowledgator/gliner-multitask-large-v0.5`,
+/// which has no pre-built public ONNX. Convert locally with optimum-cli to enable
+/// model-based relation extraction.
 fn find_rel_model(models_dir: &Path) -> Option<PathBuf> {
     let candidates = [
+        // Token-level multitask model (v0.5) — convert from PyTorch with optimum-cli
         models_dir.join("gliner-multitask-large-v0.5/onnx/model.onnx"),
         models_dir.join("gliner-multitask-large.onnx"),
-        models_dir.join("glirel-large.onnx"),
     ];
 
     candidates.into_iter().find(|c| c.exists())
