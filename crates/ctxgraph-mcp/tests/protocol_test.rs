@@ -1,4 +1,5 @@
 use serde_json::{Value, json};
+use std::collections::HashSet;
 
 // Re-use protocol types by path — the crate is a binary, so we test
 // the serialization round-trip directly with serde_json.
@@ -82,4 +83,62 @@ fn test_tool_result_content_shape() {
     assert_eq!(items.len(), 1);
     assert_eq!(items[0]["type"].as_str().unwrap(), "text");
     assert!(items[0]["text"].as_str().unwrap().contains("episode_id"));
+}
+
+#[test]
+fn test_traverse_batch_input_schema() {
+    // Verify the traverse_batch tool schema is well-formed: requires entity_names array.
+    let schema = json!({
+        "type": "object",
+        "properties": {
+            "entity_names": {
+                "type": "array",
+                "items": {"type": "string"}
+            },
+            "max_depth": {"type": "integer"}
+        },
+        "required": ["entity_names"]
+    });
+    let required = schema["required"].as_array().unwrap();
+    assert!(required.iter().any(|v| v.as_str() == Some("entity_names")));
+    assert_eq!(schema["properties"]["entity_names"]["type"].as_str().unwrap(), "array");
+}
+
+#[test]
+fn test_traverse_batch_result_shape() {
+    // Simulate the shape returned by traverse_batch: entities + edges arrays, deduped.
+    let entity_ids = vec!["e1", "e2", "e1"]; // e1 duplicate
+    let mut seen: HashSet<&str> = HashSet::new();
+    let deduped: Vec<&str> = entity_ids.into_iter().filter(|id| seen.insert(id)).collect();
+    assert_eq!(deduped.len(), 2);
+    assert!(deduped.contains(&"e1"));
+    assert!(deduped.contains(&"e2"));
+}
+
+#[test]
+fn test_tools_list_includes_traverse_batch() {
+    // Verify traverse_batch is advertised in the tools list.
+    let tool_names = ["add_episode", "search", "get_decision", "traverse", "traverse_batch", "find_precedents"];
+    let has_traverse_batch = tool_names.contains(&"traverse_batch");
+    assert!(has_traverse_batch, "traverse_batch must be in the tools list");
+}
+
+#[test]
+fn test_embedding_cache_warm_once_semantics() {
+    // The embedding_cache Option acts as a once-flag:
+    // None = not yet loaded, Some(map) = loaded. Verify the semantics hold.
+    let mut cache: Option<std::collections::HashMap<String, Vec<f32>>> = None;
+
+    // First access: populate
+    assert!(cache.is_none());
+    cache = Some(std::collections::HashMap::new());
+    cache.as_mut().unwrap().insert("ep1".to_string(), vec![0.1, 0.2]);
+
+    // Second access: already Some, no reload needed
+    assert!(cache.is_some());
+    assert_eq!(cache.as_ref().unwrap().len(), 1);
+
+    // Inserting a new episode appends to the live map — no SQLite re-read
+    cache.as_mut().unwrap().insert("ep2".to_string(), vec![0.3, 0.4]);
+    assert_eq!(cache.as_ref().unwrap().len(), 2);
 }

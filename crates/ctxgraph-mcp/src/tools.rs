@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use ctxgraph::{Episode, Graph};
@@ -7,9 +8,35 @@ use serde_json::{Value, json};
 pub struct ToolContext {
     pub graph: Arc<Mutex<Graph>>,
     pub embed: Arc<EmbedEngine>,
+    /// In-memory embedding cache: episode_id → 384-dim vector.
+    ///
+    /// Populated lazily on the first `find_precedents` call, then kept warm.
+    /// Invalidated (new entry appended) when `add_episode` stores a new embedding
+    /// so subsequent searches never re-hit SQLite for already-loaded episodes.
+    embedding_cache: Mutex<Option<HashMap<String, Vec<f32>>>>,
 }
 
 impl ToolContext {
+    pub fn new(graph: Graph, embed: EmbedEngine) -> Self {
+        Self {
+            graph: Arc::new(Mutex::new(graph)),
+            embed: Arc::new(embed),
+            embedding_cache: Mutex::new(None),
+        }
+    }
+
+    /// Populate the in-memory embedding cache from SQLite if it hasn't been loaded yet.
+    /// Subsequent calls return immediately — the Option acts as a once-flag.
+    fn warm_cache(&self) -> Result<(), String> {
+        let mut cache = self.embedding_cache.lock().map_err(|e| e.to_string())?;
+        if cache.is_none() {
+            let graph = self.graph.lock().map_err(|e| e.to_string())?;
+            let rows = graph.get_embeddings().map_err(|e| e.to_string())?;
+            *cache = Some(rows.into_iter().collect());
+        }
+        Ok(())
+    }
+
     /// Tool: add_episode
     /// Adds a new episode to the graph, computes and stores its embedding.
     pub async fn add_episode(&self, args: Value) -> Result<Value, String> {
@@ -40,13 +67,23 @@ impl ToolContext {
             graph.add_episode(episode).map_err(|e| e.to_string())?
         };
 
-        // Compute and store embedding
+        // Compute embedding and persist to SQLite
         let embedding = self.embed.embed(&text).map_err(|e| e.to_string())?;
         {
             let graph = self.graph.lock().map_err(|e| e.to_string())?;
             graph
                 .store_embedding(&episode_id, &embedding)
                 .map_err(|e| e.to_string())?;
+        }
+
+        // Insert into in-memory cache so find_precedents sees it immediately
+        // without another SQLite round-trip.
+        if let Ok(mut cache) = self.embedding_cache.lock() {
+            if let Some(ref mut map) = *cache {
+                map.insert(episode_id.clone(), embedding);
+            }
+            // If cache is None (never warmed), leave it — it will be populated
+            // from SQLite (including this episode) on the first find_precedents call.
         }
 
         Ok(json!({
@@ -152,6 +189,10 @@ impl ToolContext {
 
     /// Tool: find_precedents
     /// Find past episodes most semantically similar to a given context.
+    ///
+    /// Uses an in-memory embedding cache so the full SQLite embedding table is
+    /// only read once per process lifetime. Subsequent calls score entirely in
+    /// RAM — O(n) dot-products, no I/O.
     pub async fn find_precedents(&self, args: Value) -> Result<Value, String> {
         let context = args["context"]
             .as_str()
@@ -159,27 +200,27 @@ impl ToolContext {
             .to_string();
         let limit = args["limit"].as_u64().unwrap_or(5) as usize;
 
-        // Embed the context
+        // Embed the query (always ~20-50ms CPU inference, unavoidable)
         let context_embedding = self.embed.embed(&context).map_err(|e| e.to_string())?;
 
-        // Load all episode embeddings
-        let all_embeddings = {
-            let graph = self.graph.lock().map_err(|e| e.to_string())?;
-            graph.get_embeddings().map_err(|e| e.to_string())?
+        // Ensure the cache is warm (no-op after first call)
+        self.warm_cache()?;
+
+        // Score entirely in RAM — no SQLite I/O
+        let mut scored: Vec<(String, f32)> = {
+            let cache = self.embedding_cache.lock().map_err(|e| e.to_string())?;
+            cache
+                .as_ref()
+                .expect("cache must be Some after warm_cache")
+                .iter()
+                .map(|(id, vec)| {
+                    let sim = EmbedEngine::cosine_similarity(&context_embedding, vec);
+                    (id.clone(), sim)
+                })
+                .collect()
         };
 
-        // Compute cosine similarity to all
-        let mut scored: Vec<(String, f32)> = all_embeddings
-            .into_iter()
-            .map(|(id, vec)| {
-                let sim = EmbedEngine::cosine_similarity(&context_embedding, &vec);
-                (id, sim)
-            })
-            .collect();
-
-        // Sort by similarity descending
         scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-
         let top: Vec<(String, f32)> = scored.into_iter().take(limit).collect();
 
         let mut results = Vec::new();
@@ -197,6 +238,63 @@ impl ToolContext {
         }
 
         Ok(json!(results))
+    }
+
+    /// Tool: traverse_batch
+    /// Traverse multiple entities in one call, returning a merged result.
+    ///
+    /// Replaces N sequential `traverse` calls with a single round-trip.
+    /// Entities not found in the graph are silently skipped (same behaviour as
+    /// individual `traverse` returning an error for unknown entities).
+    pub async fn traverse_batch(&self, args: Value) -> Result<Value, String> {
+        let entity_names: Vec<String> = args["entity_names"]
+            .as_array()
+            .ok_or("missing required field: entity_names")?
+            .iter()
+            .filter_map(|v| v.as_str().map(|s| s.to_string()))
+            .collect();
+
+        if entity_names.is_empty() {
+            return Ok(json!({"entities": [], "edges": []}));
+        }
+
+        let max_depth = (args["max_depth"].as_u64().unwrap_or(2) as usize).min(5);
+
+        let graph = self.graph.lock().map_err(|e| e.to_string())?;
+
+        let mut all_entities: Vec<Value> = Vec::new();
+        let mut all_edges: Vec<Value> = Vec::new();
+        // Dedup by ID across multiple traversals
+        let mut seen_entities = std::collections::HashSet::new();
+        let mut seen_edges = std::collections::HashSet::new();
+
+        for name in &entity_names {
+            let entity = match graph.get_entity_by_name(name) {
+                Ok(Some(e)) => e,
+                Ok(None) | Err(_) => continue, // skip unknown entities
+            };
+
+            let (entities, edges) = match graph.traverse(&entity.id, max_depth) {
+                Ok(r) => r,
+                Err(_) => continue,
+            };
+
+            for e in entities {
+                if seen_entities.insert(e.id.clone()) {
+                    all_entities.push(serde_json::to_value(e).unwrap_or(Value::Null));
+                }
+            }
+            for e in edges {
+                if seen_edges.insert(e.id.clone()) {
+                    all_edges.push(serde_json::to_value(e).unwrap_or(Value::Null));
+                }
+            }
+        }
+
+        Ok(json!({
+            "entities": all_entities,
+            "edges": all_edges,
+        }))
     }
 }
 
@@ -263,6 +361,22 @@ pub fn tools_list() -> Value {
                         "max_depth": {"type": "integer", "description": "Traversal depth (default 2, max 5)"}
                     },
                     "required": ["entity_name"]
+                }
+            },
+            {
+                "name": "traverse_batch",
+                "description": "Traverse multiple entities in one call. Equivalent to N sequential traverse calls but with a single round-trip. Deduplicates entities and edges across all traversals.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "entity_names": {
+                            "type": "array",
+                            "items": {"type": "string"},
+                            "description": "List of entity names to traverse from"
+                        },
+                        "max_depth": {"type": "integer", "description": "Traversal depth per entity (default 2, max 5)"}
+                    },
+                    "required": ["entity_names"]
                 }
             },
             {

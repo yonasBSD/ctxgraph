@@ -15,10 +15,7 @@ pub struct McpServer {
 impl McpServer {
     pub fn new(graph: Graph, embed: EmbedEngine) -> Self {
         Self {
-            ctx: Arc::new(ToolContext {
-                graph: Arc::new(Mutex::new(graph)),
-                embed: Arc::new(embed),
-            }),
+            ctx: Arc::new(ToolContext::new(graph, embed)),
         }
     }
 
@@ -102,6 +99,7 @@ impl McpServer {
                     "search" => ctx.search(args).await,
                     "get_decision" => ctx.get_decision(args).await,
                     "traverse" => ctx.traverse(args).await,
+                    "traverse_batch" => ctx.traverse_batch(args).await,
                     "find_precedents" => ctx.find_precedents(args).await,
                     other => Err(format!("unknown tool: {other}")),
                 };
