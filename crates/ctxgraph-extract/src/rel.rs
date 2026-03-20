@@ -12,7 +12,9 @@ use orp::model::Model;
 use orp::params::RuntimeParameters;
 use orp::pipeline::Pipeline;
 
+use crate::api::ApiRelEngine;
 use crate::ner::ExtractedEntity;
+use crate::ollama::OllamaRelEngine;
 use crate::schema::ExtractionSchema;
 
 /// A relation extracted between two entities.
@@ -26,13 +28,19 @@ pub struct ExtractedRelation {
 
 /// Relation extraction engine.
 ///
-/// Supports two modes:
-/// - **Model-based**: Uses gline-rs `RelationPipeline` with the multitask ONNX model.
-/// - **Heuristic**: Pattern-based extraction when no relation model is available.
+/// Supports three tiers:
+/// - **Tier 1a (Ollama)**: Local LLM (Triplex/Qwen) for high-quality zero-shot RE.
+/// - **Tier 1b (ONNX)**: gline-rs `RelationPipeline` with the multitask ONNX model.
+/// - **Tier 1c (Heuristic)**: Pattern-based extraction (always available, no dependencies).
+///
+/// Falls through tiers automatically: Ollama → ONNX model → Heuristic.
 pub enum RelEngine {
     ModelBased(ModelBasedRelEngine),
     Heuristic,
 }
+
+/// Cached Ollama availability check (per-engine lifetime).
+static OLLAMA_AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
 
 /// Model-based relation extraction using gline-rs.
 ///
@@ -147,17 +155,54 @@ impl RelEngine {
 
     /// Extract relations between entities.
     ///
-    /// Currently uses heuristic extraction. The neural model path is reserved
-    /// for future use when a model trained on domain-specific relation types
-    /// becomes available.
+    /// Tries tiers in order, falling through on failure:
+    /// 1. **API** (if `CTXGRAPH_API_KEY` is set) — highest quality (~0.85-0.90 F1)
+    /// 2. **Ollama** (if running locally) — good quality (~0.70-0.78 F1)
+    /// 3. **Heuristic** (always available) — baseline (~0.42 F1)
+    ///
+    /// Environment variables:
+    /// - `CTXGRAPH_API_KEY`: OpenAI/compatible API key (enables Tier 2)
+    /// - `CTXGRAPH_API_URL`: Custom API endpoint (default: OpenAI)
+    /// - `CTXGRAPH_API_MODEL`: API model (default: gpt-4.1-mini)
+    /// - `CTXGRAPH_OLLAMA_URL`: Ollama endpoint (default: localhost:11434)
+    /// - `CTXGRAPH_OLLAMA_MODEL`: Ollama model (default: sciphi/triplex)
+    /// - `CTXGRAPH_NO_OLLAMA=1`: Skip Ollama tier
+    /// - `CTXGRAPH_NO_API=1`: Skip API tier
     pub fn extract(
         &self,
         text: &str,
         entities: &[ExtractedEntity],
         schema: &ExtractionSchema,
     ) -> Result<Vec<ExtractedRelation>, RelError> {
-        // Heuristic extraction works better than the generic multitask model
-        // for our domain-specific relation types (chose, replaced, depends_on, etc.)
+        // Tier 2: API-based extraction (highest quality)
+        if std::env::var("CTXGRAPH_NO_API").is_err() {
+            if let Some(engine) = ApiRelEngine::from_env() {
+                match engine.extract(text, entities, schema) {
+                    Ok(relations) if !relations.is_empty() => return Ok(relations),
+                    Ok(_) => {} // Empty result, fall through
+                    Err(_) => {} // Error, fall through
+                }
+            }
+        }
+
+        // Tier 1a: Ollama local LLM (good quality, no API key needed)
+        if std::env::var("CTXGRAPH_NO_OLLAMA").is_err() {
+            let available = *OLLAMA_AVAILABLE.get_or_init(|| {
+                let engine = OllamaRelEngine::new();
+                engine.is_available()
+            });
+
+            if available {
+                let engine = OllamaRelEngine::new();
+                match engine.extract(text, entities, schema) {
+                    Ok(relations) if !relations.is_empty() => return Ok(relations),
+                    Ok(_) => {} // Empty result, fall through
+                    Err(_) => {} // Error, fall through
+                }
+            }
+        }
+
+        // Tier 1c: Heuristic (always available, no dependencies)
         Ok(heuristic_relations(text, entities, schema))
     }
 }
