@@ -185,57 +185,90 @@ impl RelEngine {
         entities: &[ExtractedEntity],
         schema: &ExtractionSchema,
     ) -> Result<Vec<ExtractedRelation>, RelError> {
-        // Tier 1: Heuristic (always runs as baseline)
-        let mut relations = heuristic_relations(text, entities, schema);
+        // Architecture: Heuristic extraction + API verification + API gap-fill.
+        //
+        // 1. Heuristic extracts relations (~0.51 F1, good conventions but noisy).
+        // 2. API independently extracts relations.
+        // 3. Keep heuristic relations confirmed by API (high precision).
+        // 4. Add API-only relations not in heuristic (fills coverage gaps).
+        // 5. If no API available, use heuristic alone.
 
-        // Tier 2: API-based augmentation (adds relations the heuristic missed)
-        // Supports OpenAI-compatible and Anthropic Claude APIs.
-        // Conservative merge: only add API relations where both entities are
-        // known extracted entities AND the entity pair isn't already covered.
-        // Additionally, at least one entity must already participate in a
-        // heuristic relation — this prevents hallucinated entity pairs.
-        if std::env::var("CTXGRAPH_NO_API").is_err() {
+        let heuristic = heuristic_relations(text, entities, schema);
+
+        let mut relations = if std::env::var("CTXGRAPH_NO_API").is_err() {
             if let Some(engine) = ApiRelEngine::from_env() {
+                let known_entities: std::collections::HashSet<&str> = entities
+                    .iter()
+                    .map(|e| e.text.as_str())
+                    .collect();
+
                 match engine.extract(text, entities, schema) {
                     Ok(api_relations) if !api_relations.is_empty() => {
-                        let existing_pairs: std::collections::HashSet<(String, String)> = relations
-                            .iter()
-                            .map(|r| (r.head.clone(), r.tail.clone()))
+                        let api_filtered: Vec<ExtractedRelation> = api_relations
+                            .into_iter()
+                            .filter(|r| {
+                                known_entities.contains(r.head.as_str())
+                                    && known_entities.contains(r.tail.as_str())
+                            })
                             .collect();
 
-                        // Known entity names from NER
-                        let known_entities: std::collections::HashSet<&str> = entities
+                        // Build sets of API entity pairs for quick lookup
+                        let api_pairs: std::collections::HashSet<(&str, &str)> = api_filtered
                             .iter()
-                            .map(|e| e.text.as_str())
+                            .map(|r| (r.head.as_str(), r.tail.as_str()))
                             .collect();
 
-                        for r in api_relations {
-                            // Skip if entity pair already covered (either direction)
-                            if existing_pairs.contains(&(r.head.clone(), r.tail.clone()))
-                                || existing_pairs.contains(&(r.tail.clone(), r.head.clone()))
-                            {
+                        let mut result = Vec::new();
+
+                        // Keep heuristic relations confirmed by API (same entity pair)
+                        for r in &heuristic {
+                            let confirmed = api_pairs.contains(&(r.head.as_str(), r.tail.as_str()))
+                                || api_pairs.contains(&(r.tail.as_str(), r.head.as_str()));
+                            if confirmed {
+                                result.push(r.clone());
+                            }
+                        }
+
+                        // Add API-only relations for uncovered entity pairs.
+                        // Skip depends_on gap-fill — it generates too many false
+                        // positives (17 spurious in benchmarks). Other types
+                        // (caused, constrained_by, etc.) are kept as gap-fill
+                        // true positives outweigh false positives.
+                        let heuristic_pairs: std::collections::HashSet<(&str, &str)> = heuristic
+                            .iter()
+                            .map(|r| (r.head.as_str(), r.tail.as_str()))
+                            .collect();
+
+                        for r in &api_filtered {
+                            if r.relation == "depends_on" {
                                 continue;
                             }
-
-                            // Both entities must be real NER entities
-                            if !known_entities.contains(r.head.as_str())
-                                || !known_entities.contains(r.tail.as_str())
-                            {
-                                continue;
+                            let covered = heuristic_pairs.contains(&(r.head.as_str(), r.tail.as_str()))
+                                || heuristic_pairs.contains(&(r.tail.as_str(), r.head.as_str()));
+                            let in_result = result.iter().any(|existing| {
+                                (existing.head == r.head && existing.tail == r.tail)
+                                || (existing.head == r.tail && existing.tail == r.head)
+                            });
+                            if !covered && !in_result {
+                                result.push(r.clone());
                             }
+                        }
 
-                            // Accept API relations without schema type constraints —
-                            // GLiNER frequently misassigns entity types (e.g., Prometheus
-                            // as "Service" instead of "Infrastructure"), and the API
-                            // already validates relation types in its response.
-                            relations.push(r);
+                        // If intersection is empty, fall back to API
+                        if result.is_empty() && !api_filtered.is_empty() {
+                            api_filtered
+                        } else {
+                            result
                         }
                     }
-                    Ok(_) => {} // Empty result, fall through
-                    Err(_) => {} // Error, fall through
+                    _ => heuristic,
                 }
+            } else {
+                heuristic
             }
-        }
+        } else {
+            heuristic
+        };
 
         // Tier 1a: NLI cross-encoder (disabled — produces too many false positives
         // even at high thresholds; DeBERTa-v3-small gives high entailment scores
@@ -346,12 +379,12 @@ fn heuristic_relations(
             "abandon", "discard", "veto",
         ]),
         ("replaced", &[
-            "replac", "migrat", "switched", "switching",
-            "moved from", "moved to",
-            "transition", "swapped",
+            // Core replacement verbs (broad keywords like "migrat", "switched",
+            // "transition" removed — they cause 5+ spurious replaced relations
+            // and real from/to migrations are caught by detect_from_to_pattern).
+            "replac", "swapped",
             "in favor of", "instead of", "in place of",
             "over the legacy", "over the old",
-            "rewrit", "rewrote", "rewritten", "fallback",
         ]),
         ("depends_on", &[
             "depend", "relies on", "rely on", "built on",

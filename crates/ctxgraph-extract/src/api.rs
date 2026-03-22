@@ -17,7 +17,7 @@ use crate::rel::ExtractedRelation;
 use crate::schema::ExtractionSchema;
 
 const DEFAULT_OPENAI_URL: &str = "https://api.openai.com/v1/chat/completions";
-const DEFAULT_OPENAI_MODEL: &str = "gpt-4.1-mini";
+const DEFAULT_OPENAI_MODEL: &str = "gpt-4o";
 const DEFAULT_ANTHROPIC_URL: &str = "https://api.anthropic.com/v1/messages";
 const DEFAULT_ANTHROPIC_MODEL: &str = "claude-haiku-4-5-20251001";
 
@@ -258,27 +258,37 @@ impl ApiRelEngine {
 
 fn build_system_prompt(schema: &ExtractionSchema) -> String {
     format!(
-        r#"You are a precise software architecture knowledge graph extractor. Extract directed relationships between entities.
+        r#"Extract the 2-3 most important directed relationships from software architecture text. Be precise — only extract relationships clearly stated in the text.
 
-Relation types with direction rules and examples:
-- chose: Person/Service adopted a technology. head=chooser, tail=chosen. "Alice chose PostgreSQL" → chose(Alice,PostgreSQL)
-- rejected: Person/Service rejected an alternative. head=rejector, tail=rejected. "decided against MongoDB" → rejected(Alice,MongoDB)
-- replaced: NEW replaced OLD. head=NEW, tail=OLD. "migrated from MySQL to PostgreSQL" → replaced(PostgreSQL,MySQL)
-- depends_on: Consumer depends on provider. head=consumer, tail=provider. "PaymentService uses Redis" → depends_on(PaymentService,Redis)
-- fixed: Fixer fixed something. head=fixer, tail=fixed. "Bob patched AuthService" → fixed(Bob,AuthService)
-- introduced: Added a new component. head=introducer, tail=introduced. "added Prometheus" → introduced(BillingService,Prometheus)
-- deprecated: Removed/phased out. head=deprecator, tail=deprecated. "sunset the SOAP endpoint" → deprecated(Bob,SOAP)
-- caused: Causal effect. head=cause, tail=effect. "Redis improved p99 latency" → caused(Redis,p99 latency)
-- constrained_by: Constrained by requirement. head=constrained, tail=constraint. "must comply with SLA" → constrained_by(Service,SLA)
+Relation types (head → tail):
+- chose: person → technology_adopted. "Alice chose PostgreSQL" → chose(Alice,PostgreSQL)
+- rejected: person → technology_rejected
+- replaced: new → old. "from X to Y" → replaced(Y,X). Don't emit for version upgrades.
+- depends_on: consumer → provider. "uses", "backed by", "managed by", "runs on"
+- fixed: fixer → thing_fixed
+- introduced: actor → new_capability. "added Prometheus" → introduced(Service,Prometheus)
+- deprecated: actor → removed_thing
+- caused: cause → effect. Metric changes only.
+- constrained_by: thing → constraint/SLA/policy
 
-Critical rules:
-1. "replaced": head=NEW, tail=OLD. "from X to Y" → head=Y, tail=X.
-2. "depends_on": head=consumer, tail=provider.
-3. "X over Y" in a choice context → chose(chooser,X) + rejected(chooser,Y).
-4. Only use relation types: {relation_keys}
+Examples:
 
-Output a JSON array of objects: [{{"head":"<entity>","relation":"<type>","tail":"<entity>"}}]
-Use exact entity names from the provided list. Only extract relationships explicitly supported by the text."#,
+Text: "Add Prometheus metrics to the BillingService. CPU utilization and request latency are now scraped every 15 seconds by Grafana dashboards."
+Output: [{{"head":"BillingService","relation":"introduced","tail":"Prometheus"}},{{"head":"Grafana","relation":"depends_on","tail":"Prometheus"}}]
+
+Text: "Upgrade the RecommendationService from Java 11 to Java 21 for virtual threads support. GC pause times dropped to sub-millisecond."
+Output: [{{"head":"RecommendationService","relation":"introduced","tail":"virtual threads"}},{{"head":"virtual threads","relation":"caused","tail":"GC pause times"}}]
+
+Text: "Enable TLS termination at the Nginx ingress controller. All traffic between the API Gateway and backend services is now encrypted."
+Output: [{{"head":"Nginx","relation":"introduced","tail":"TLS"}},{{"head":"API Gateway","relation":"depends_on","tail":"Nginx"}}]
+
+Text: "chore: Jack migrated the LogAggregator from Fluentd to Vector for better throughput and lower resource usage"
+Output: [{{"head":"Jack","relation":"chose","tail":"Vector"}},{{"head":"Vector","relation":"replaced","tail":"Fluentd"}},{{"head":"LogAggregator","relation":"depends_on","tail":"Vector"}}]
+
+Rules:
+1. Use ONLY entity names from the provided list — copy exactly.
+2. Extract 2-3 relationships maximum. Precision over recall.
+3. Only use: {relation_keys}"#,
         relation_keys = schema.relation_labels().join(", "),
     )
 }
@@ -286,23 +296,17 @@ Use exact entity names from the provided list. Only extract relationships explic
 fn build_user_prompt(
     text: &str,
     entities: &[ExtractedEntity],
-    schema: &ExtractionSchema,
+    _schema: &ExtractionSchema,
 ) -> String {
-    let entity_list: Vec<String> = entities
-        .iter()
-        .map(|e| format!("- {} [{}]", e.text, e.entity_type))
-        .collect();
+    let entity_names: Vec<&str> = entities.iter().map(|e| e.text.as_str()).collect();
 
     format!(
-        r#"Entities:
-{entities}
+        r#"Entities: {entity_list}
 
 Text: {text}
 
-Extract relationships using ONLY these types: {types}
-Output ONLY a JSON array, no other text."#,
-        entities = entity_list.join("\n"),
-        types = schema.relation_labels().join(", "),
+Output ONLY a JSON array."#,
+        entity_list = entity_names.join(", "),
     )
 }
 
@@ -387,6 +391,186 @@ fn match_entity<'a>(name: &str, entities: &'a [ExtractedEntity]) -> Option<&'a E
         e.text.to_lowercase().contains(&name_lower)
             || name_lower.contains(&e.text.to_lowercase())
     })
+}
+
+// ---------------------------------------------------------------------------
+// Entity cleanup via API
+// ---------------------------------------------------------------------------
+
+impl ApiRelEngine {
+    /// Clean up entity names using the API LLM.
+    ///
+    /// Sends GLiNER's entity extractions to GPT-4.1-mini (or configured model)
+    /// to fix verbose names and remove generic non-entities.
+    ///
+    /// Returns a mapping from original entity text → cleaned entity text.
+    /// Entities not in the result should be removed (LLM deemed them generic).
+    pub fn cleanup_entities(
+        &self,
+        text: &str,
+        entities: &[ExtractedEntity],
+    ) -> Result<std::collections::HashMap<String, String>, ApiError> {
+        if entities.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        let entity_names: Vec<&str> = entities.iter().map(|e| e.text.as_str()).collect();
+        let entity_json = serde_json::to_string(&entity_names)
+            .map_err(|e| ApiError::Parse(e.to_string()))?;
+
+        let system = "You are a precise NER post-processor. Fix entity names extracted by a NER model.";
+        let user = format!(
+            r#"A NER model extracted these entities from the text below. Some names may have extra words or be incorrect. Fix them.
+
+Extracted entities: {entity_json}
+
+Text: {text}
+
+Rules:
+- Fix entity names to be the shortest precise form (e.g., "Terraform modules" → "Terraform", "IAM roles" → "IAM")
+- Remove generic entities that aren't real names (e.g., "services", "resources", "modules")
+- Keep entities that are correct as-is
+- Return ONLY a JSON array of corrected entity name strings
+
+Output ONLY a JSON array of strings, no other text."#
+        );
+
+        let content = match self.provider {
+            ApiProvider::Anthropic => self.call_anthropic(system, &user)?,
+            ApiProvider::OpenAI => self.call_openai(system, &user)?,
+        };
+
+        parse_cleanup_response(&content, &entity_names)
+    }
+}
+
+/// Parse the API cleanup response into an original→cleaned name mapping.
+fn parse_cleanup_response(
+    response: &str,
+    originals: &[&str],
+) -> Result<std::collections::HashMap<String, String>, ApiError> {
+    let mut mapping = std::collections::HashMap::new();
+
+    // Extract JSON array from response
+    let text = response.trim();
+    let json_str = if text.starts_with('[') {
+        text.to_string()
+    } else {
+        // Try markdown code block
+        let re = regex::Regex::new(r"```(?:json)?\s*\n?(.*?)\n?```").unwrap();
+        re.captures(text)
+            .and_then(|c| c.get(1))
+            .map(|m| m.as_str().trim().to_string())
+            .unwrap_or_else(|| text.to_string())
+    };
+
+    let cleaned: Vec<String> = serde_json::from_str(&json_str)
+        .map_err(|e| ApiError::Parse(format!("cleanup JSON: {}", e)))?;
+
+    // Match cleaned names back to originals
+    let mut used_originals = std::collections::HashSet::new();
+
+    for cleaned_name in &cleaned {
+        let cleaned_lower = cleaned_name.to_lowercase();
+
+        // Exact match
+        if let Some(&orig) = originals.iter().find(|&&o| {
+            o.to_lowercase() == cleaned_lower && !used_originals.contains(o)
+        }) {
+            mapping.insert(orig.to_string(), cleaned_name.clone());
+            used_originals.insert(orig);
+            continue;
+        }
+
+        // Substring match (original contains cleaned or vice versa)
+        if let Some(&orig) = originals.iter().find(|&&o| {
+            !used_originals.contains(o)
+                && (o.to_lowercase().contains(&cleaned_lower)
+                    || cleaned_lower.contains(&o.to_lowercase()))
+        }) {
+            mapping.insert(orig.to_string(), cleaned_name.clone());
+            used_originals.insert(orig);
+        }
+    }
+
+    Ok(mapping)
+}
+
+/// Apply API-based entity cleanup to extracted entities.
+///
+/// Only processes multi-word entities and known generic single-word entities.
+/// Single-word proper nouns are never sent to the API.
+pub fn api_cleanup_entities(
+    text: &str,
+    entities: &mut Vec<ExtractedEntity>,
+) {
+    if std::env::var("CTXGRAPH_NO_API").is_ok() {
+        return;
+    }
+
+    let engine = match ApiRelEngine::from_env() {
+        Some(e) => e,
+        None => return,
+    };
+
+    // Generic single-word entities that GLiNER sometimes extracts incorrectly
+    let generic_words: std::collections::HashSet<&str> = [
+        "services", "resources", "modules", "components", "systems",
+        "applications", "tools", "frameworks", "libraries", "packages",
+        "endpoints", "requests", "responses", "queries", "operations",
+    ].into_iter().collect();
+
+    // Only send candidates that likely need cleanup
+    let needs_cleanup: Vec<usize> = entities
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| {
+            let word_count = e.text.split_whitespace().count();
+            word_count > 1
+                || generic_words.contains(e.text.to_lowercase().as_str())
+        })
+        .map(|(i, _)| i)
+        .collect();
+
+    if needs_cleanup.is_empty() {
+        return;
+    }
+
+    let candidates: Vec<ExtractedEntity> = needs_cleanup
+        .iter()
+        .map(|&i| entities[i].clone())
+        .collect();
+
+    match engine.cleanup_entities(text, &candidates) {
+        Ok(mapping) if !mapping.is_empty() => {
+            // Remove entities the LLM dropped
+            let indices_to_remove: Vec<usize> = needs_cleanup
+                .iter()
+                .filter(|&&i| !mapping.contains_key(&entities[i].text))
+                .copied()
+                .collect();
+
+            // Apply renames
+            for &i in &needs_cleanup {
+                if let Some(cleaned) = mapping.get(&entities[i].text) {
+                    if cleaned != &entities[i].text {
+                        entities[i].text = cleaned.clone();
+                    }
+                }
+            }
+
+            // Remove dropped entities (reverse order to preserve indices)
+            for &i in indices_to_remove.iter().rev() {
+                entities.remove(i);
+            }
+
+            // Dedup after renaming
+            let mut seen = std::collections::HashSet::new();
+            entities.retain(|e| seen.insert(e.text.clone()));
+        }
+        Ok(_) => {}
+        Err(_) => {}
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
