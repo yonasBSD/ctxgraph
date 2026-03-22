@@ -5,6 +5,7 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Extraction pipeline for ctxgraph — NER, relations, temporal parsing"
+exclude = [".fastembed_cache/", "models/"]
 
 [dependencies]
 chrono = { workspace = true }
