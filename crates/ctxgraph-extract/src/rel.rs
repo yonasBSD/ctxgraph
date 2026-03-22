@@ -203,12 +203,6 @@ impl RelEngine {
                             .map(|r| (r.head.clone(), r.tail.clone()))
                             .collect();
 
-                        // Entities that already participate in heuristic relations
-                        let heuristic_entities: std::collections::HashSet<String> = relations
-                            .iter()
-                            .flat_map(|r| [r.head.clone(), r.tail.clone()])
-                            .collect();
-
                         // Known entity names from NER
                         let known_entities: std::collections::HashSet<&str> = entities
                             .iter()
@@ -230,23 +224,11 @@ impl RelEngine {
                                 continue;
                             }
 
-                            // At least one entity must already be in a heuristic relation
-                            if !heuristic_entities.contains(&r.head)
-                                && !heuristic_entities.contains(&r.tail)
-                            {
-                                continue;
-                            }
-
-                            // Validate against schema type constraints
-                            if let Some(spec) = schema.relation_types.get(&r.relation) {
-                                let head_type = entities.iter().find(|e| e.text == r.head).map(|e| e.entity_type.as_str());
-                                let tail_type = entities.iter().find(|e| e.text == r.tail).map(|e| e.entity_type.as_str());
-                                if let (Some(ht), Some(tt)) = (head_type, tail_type) {
-                                    if spec.head.iter().any(|h| h == ht) && spec.tail.iter().any(|t| t == tt) {
-                                        relations.push(r);
-                                    }
-                                }
-                            }
+                            // Accept API relations without schema type constraints —
+                            // GLiNER frequently misassigns entity types (e.g., Prometheus
+                            // as "Service" instead of "Infrastructure"), and the API
+                            // already validates relation types in its response.
+                            relations.push(r);
                         }
                     }
                     Ok(_) => {} // Empty result, fall through
@@ -395,6 +377,8 @@ fn heuristic_relations(
             "used by", "via ",
             "package manager",
             "is down",
+            // Language/runtime patterns
+            "goroutine",
         ]),
         ("fixed", &[
             "fixed", "fixing", "resolv", "patched", "repaired",
@@ -410,6 +394,8 @@ fn heuristic_relations(
             "configur", "establish", "rolled out", "launched",
             "onboard", "provision", "stood up", "spun up",
             "upgrad", "extract",
+            // Selection/adoption that introduces something
+            "chosen to enforc", "chosen to implement",
         ]),
         ("deprecated", &[
             "deprecat", "removed", "removing", "phased out", "phase out",
@@ -428,7 +414,7 @@ fn heuristic_relations(
             "required to", "has to", "have to",
             "cannot exceed", "comply", "enforc",
             "subject to", "bound by", "governed by",
-            "mandated", "driven by",
+            "mandated", "driven by", "must comply",
             "guarantee", "accepted",
             "rate limit", "forbidden", "must not",
             "exceed", "scoped", "capped at", "cap at",
@@ -547,7 +533,7 @@ fn heuristic_relations(
             }
 
             // Sort by confidence descending, take top 1 pair per relation per sentence
-            // to maximize precision — second candidates are usually false positives
+            // to maximize precision — second candidates are usually false positives.
             candidates.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
             for (confidence, head, tail) in candidates.into_iter().take(1) {
@@ -952,20 +938,31 @@ fn determine_direction(
         let first_lower = first.text.to_lowercase();
         let second_lower = second.text.to_lowercase();
 
-        // "X used by Y" → Y:depends_on:X
-        if let Some(pos) = sent_lower.find("used by") {
-            let first_pos = sent_lower.find(&first_lower);
-            let second_pos = sent_lower.find(&second_lower);
-            if let (Some(fp), Some(sp)) = (first_pos, second_pos) {
-                if fp < pos && sp > pos {
-                    // first is the provider (used by), second is the consumer
-                    return (second.text.clone(), first.text.clone());
-                }
-                if sp < pos && fp > pos {
-                    return (first.text.clone(), second.text.clone());
+        // Passive voice: "X <verb> by Y" → Y:depends_on:X
+        // "scraped by Grafana" → Grafana:depends_on:Prometheus
+        // "managed by Kubernetes" → Envoy:depends_on:Kubernetes
+        let passive_markers = ["used by", "scraped by", "managed by", "orchestrated by", "handled by"];
+        for marker in passive_markers {
+            if let Some(pos) = sent_lower.find(marker) {
+                let first_pos = sent_lower.find(&first_lower);
+                let second_pos = sent_lower.find(&second_lower);
+                if let (Some(fp), Some(sp)) = (first_pos, second_pos) {
+                    if fp < pos && sp > pos {
+                        // first is the provider, second is the consumer (after "by")
+                        return (second.text.clone(), first.text.clone());
+                    }
+                    if sp < pos && fp > pos {
+                        return (first.text.clone(), second.text.clone());
+                    }
                 }
             }
         }
+
+        // "in front of X" → thing-in-front depends_on X (reverse intuition:
+        // the proxy in front depends on what it proxies)
+        // Actually: "gateway in front of PaymentService" → PaymentService:constrained_by or
+        // more commonly the service behind depends on the gateway.
+        // Keep default text-order for this case.
 
         // "X via Y" → X:depends_on:Y
         if let Some(pos) = sent_lower.find(" via ") {
@@ -981,8 +978,26 @@ fn determine_direction(
             }
         }
 
+        // "X-based Y" → Y:depends_on:X (e.g., "SQLite-based local cache" → cache:depends_on:SQLite)
+        if sent_lower.contains("-based") {
+            let first_pos = sent_lower.find(&first_lower);
+            let second_pos = sent_lower.find(&second_lower);
+            if let Some(based_pos) = sent_lower.find("-based") {
+                if let (Some(fp), Some(sp)) = (first_pos, second_pos) {
+                    // Entity whose name appears right before "-based" is the provider
+                    if fp < based_pos && based_pos <= fp + first_lower.len() + 1 {
+                        // first is the technology (provider), second depends on it
+                        return (second.text.clone(), first.text.clone());
+                    }
+                    if sp < based_pos && based_pos <= sp + second_lower.len() + 1 {
+                        return (first.text.clone(), second.text.clone());
+                    }
+                }
+            }
+        }
+
         let consumer_types = ["Service", "Component"];
-        let provider_types = ["Database", "Infrastructure"];
+        let provider_types = ["Database", "Infrastructure", "Language"];
 
         let first_is_consumer = consumer_types.contains(&first.entity_type.as_str());
         let second_is_consumer = consumer_types.contains(&second.entity_type.as_str());

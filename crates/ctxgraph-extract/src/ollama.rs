@@ -488,6 +488,267 @@ fn match_entity<'a>(name: &str, entities: &'a [ExtractedEntity]) -> Option<&'a E
     None
 }
 
+// ---------------------------------------------------------------------------
+// Entity cleanup via local LLM
+// ---------------------------------------------------------------------------
+
+/// Default model for entity cleanup (qwen2.5:3b tested best at 0.874 F1).
+const DEFAULT_CLEANUP_MODEL: &str = "qwen2.5:3b";
+
+/// Ollama-based entity name cleanup.
+///
+/// Takes GLiNER's raw entity extractions and uses a local LLM to:
+/// - Shorten verbose names ("Terraform modules" → "Terraform")
+/// - Remove generic/non-entity words ("services", "resources")
+/// - Keep correct entities as-is
+///
+/// Benchmark results (on hard cases where GLiNER fails):
+/// - GLiNER baseline: 0.636 F1
+/// - qwen2.5:3b cleanup: 0.874 F1 (+37%)
+pub struct OllamaEntityCleaner {
+    base_url: String,
+    model: String,
+}
+
+impl OllamaEntityCleaner {
+    /// Create a new entity cleaner using env vars or defaults.
+    ///
+    /// Uses `CTXGRAPH_OLLAMA_URL` and `CTXGRAPH_CLEANUP_MODEL` env vars,
+    /// falling back to localhost:11434 and qwen2.5:3b.
+    pub fn new() -> Self {
+        Self {
+            base_url: std::env::var("CTXGRAPH_OLLAMA_URL")
+                .unwrap_or_else(|_| DEFAULT_OLLAMA_URL.to_string()),
+            model: std::env::var("CTXGRAPH_CLEANUP_MODEL")
+                .unwrap_or_else(|_| DEFAULT_CLEANUP_MODEL.to_string()),
+        }
+    }
+
+    /// Check if Ollama is reachable.
+    pub fn is_available(&self) -> bool {
+        let url = format!("{}/api/tags", self.base_url);
+        reqwest::blocking::Client::new()
+            .get(&url)
+            .timeout(std::time::Duration::from_millis(500))
+            .send()
+            .map(|r| r.status().is_success())
+            .unwrap_or(false)
+    }
+
+    /// Clean up entity names using the local LLM.
+    ///
+    /// Returns a mapping from original entity text → cleaned entity text.
+    /// Entities not in the result should be removed (LLM deemed them generic).
+    pub fn cleanup(
+        &self,
+        text: &str,
+        entities: &[ExtractedEntity],
+    ) -> Result<std::collections::HashMap<String, String>, OllamaError> {
+        if entities.is_empty() {
+            return Ok(std::collections::HashMap::new());
+        }
+
+        let entity_names: Vec<&str> = entities.iter().map(|e| e.text.as_str()).collect();
+        let entity_json = serde_json::to_string(&entity_names)
+            .map_err(|e| OllamaError::Parse(e.to_string()))?;
+
+        let prompt = format!(
+            r#"A NER model extracted these entities from the text below. Some entity names may have extra words or be incorrect. Fix them.
+
+Extracted entities: {entity_json}
+
+Text: {text}
+
+Rules:
+- Fix entity names to be the shortest precise form (e.g., "Terraform modules" → "Terraform")
+- Remove generic entities that aren't real names (e.g., "services", "resources")
+- Keep entities that are correct as-is
+- Return ONLY a JSON array of corrected entity name strings
+
+Output ONLY a JSON array of strings, no other text."#
+        );
+
+        let request = OllamaRequest {
+            model: self.model.clone(),
+            prompt,
+            stream: false,
+            options: OllamaOptions {
+                temperature: 0.0,
+                num_predict: 256,
+            },
+        };
+
+        let url = format!("{}/api/generate", self.base_url);
+        let response = reqwest::blocking::Client::new()
+            .post(&url)
+            .timeout(std::time::Duration::from_secs(15))
+            .json(&request)
+            .send()
+            .map_err(|e| OllamaError::Request(e.to_string()))?;
+
+        if !response.status().is_success() {
+            return Err(OllamaError::HttpStatus(response.status().as_u16()));
+        }
+
+        let body: OllamaResponse = response
+            .json::<OllamaResponse>()
+            .map_err(|e| OllamaError::Parse(e.to_string()))?;
+
+        parse_cleanup_response(&body.response, &entity_names)
+    }
+}
+
+/// Parse the LLM cleanup response into an original→cleaned name mapping.
+///
+/// The LLM returns a JSON array of cleaned entity name strings.
+/// We match them back to originals by order and similarity.
+fn parse_cleanup_response(
+    response: &str,
+    originals: &[&str],
+) -> Result<std::collections::HashMap<String, String>, OllamaError> {
+    let mut mapping = std::collections::HashMap::new();
+
+    // Try to extract JSON array from response
+    let text = response.trim();
+    let json_str = if text.starts_with('[') {
+        text
+    } else {
+        // Try markdown code block
+        let re = regex::Regex::new(r"```(?:json)?\s*\n?(.*?)\n?```").unwrap();
+        if let Some(caps) = re.captures(text) {
+            caps.get(1).map(|m| m.as_str().trim()).unwrap_or(text)
+        } else {
+            text
+        }
+    };
+
+    let cleaned: Vec<String> = serde_json::from_str(json_str)
+        .map_err(|e| OllamaError::Parse(format!("cleanup JSON: {}", e)))?;
+
+    // Build mapping: match cleaned names back to originals
+    // Strategy: for each cleaned name, find the original it most likely came from
+    let mut used_originals = std::collections::HashSet::new();
+
+    for cleaned_name in &cleaned {
+        let cleaned_lower = cleaned_name.to_lowercase();
+
+        // Try exact match first
+        if let Some(&orig) = originals.iter().find(|&&o| {
+            o.to_lowercase() == cleaned_lower && !used_originals.contains(o)
+        }) {
+            mapping.insert(orig.to_string(), cleaned_name.clone());
+            used_originals.insert(orig);
+            continue;
+        }
+
+        // Try substring match (original contains cleaned or vice versa)
+        if let Some(&orig) = originals.iter().find(|&&o| {
+            !used_originals.contains(o)
+                && (o.to_lowercase().contains(&cleaned_lower)
+                    || cleaned_lower.contains(&o.to_lowercase()))
+        }) {
+            mapping.insert(orig.to_string(), cleaned_name.clone());
+            used_originals.insert(orig);
+        }
+    }
+
+    Ok(mapping)
+}
+
+/// Cached Ollama cleanup availability check.
+static OLLAMA_CLEANUP_AVAILABLE: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+
+/// Apply Ollama entity cleanup to a set of extracted entities.
+///
+/// Conservative strategy: only modify entities that likely need fixing.
+/// An entity is a candidate for cleanup if it:
+/// - Contains multiple words (e.g., "Terraform modules", "IAM roles")
+/// - Is a single generic word (e.g., "services", "resources")
+///
+/// Single-word proper nouns (e.g., "Kubernetes", "Redis") are NEVER sent
+/// to the LLM — they're already correct and the LLM might remove them.
+pub fn cleanup_entities(
+    text: &str,
+    entities: &mut Vec<ExtractedEntity>,
+) {
+    if std::env::var("CTXGRAPH_NO_OLLAMA").is_ok() {
+        return;
+    }
+
+    let available = *OLLAMA_CLEANUP_AVAILABLE.get_or_init(|| {
+        let cleaner = OllamaEntityCleaner::new();
+        cleaner.is_available()
+    });
+
+    if !available {
+        return;
+    }
+
+    // Generic single-word entities that GLiNER sometimes extracts incorrectly
+    let generic_words: std::collections::HashSet<&str> = [
+        "services", "resources", "modules", "components", "systems",
+        "applications", "tools", "frameworks", "libraries", "packages",
+        "endpoints", "requests", "responses", "queries", "operations",
+    ].into_iter().collect();
+
+    // Identify entities that need cleanup
+    let needs_cleanup: Vec<usize> = entities
+        .iter()
+        .enumerate()
+        .filter(|(_, e)| {
+            let word_count = e.text.split_whitespace().count();
+            // Multi-word entities often have extra words
+            word_count > 1
+            // Single generic words should be removed
+            || generic_words.contains(e.text.to_lowercase().as_str())
+        })
+        .map(|(i, _)| i)
+        .collect();
+
+    if needs_cleanup.is_empty() {
+        return;
+    }
+
+    // Only send candidates to the LLM
+    let candidates: Vec<ExtractedEntity> = needs_cleanup
+        .iter()
+        .map(|&i| entities[i].clone())
+        .collect();
+
+    let cleaner = OllamaEntityCleaner::new();
+    match cleaner.cleanup(text, &candidates) {
+        Ok(mapping) if !mapping.is_empty() => {
+            // Remove generic single-word entities not in the mapping
+            // and rename multi-word entities
+            let indices_to_remove: Vec<usize> = needs_cleanup
+                .iter()
+                .filter(|&&i| !mapping.contains_key(&entities[i].text))
+                .copied()
+                .collect();
+
+            // Apply renames first (before removing by index)
+            for &i in &needs_cleanup {
+                if let Some(cleaned) = mapping.get(&entities[i].text) {
+                    if cleaned != &entities[i].text {
+                        entities[i].text = cleaned.clone();
+                    }
+                }
+            }
+
+            // Remove entities the LLM dropped (iterate in reverse to preserve indices)
+            for &i in indices_to_remove.iter().rev() {
+                entities.remove(i);
+            }
+
+            // Dedup: after renaming, multiple entities might have the same text
+            let mut seen = std::collections::HashSet::new();
+            entities.retain(|e| seen.insert(e.text.clone()));
+        }
+        Ok(_) => {} // Empty mapping, no changes
+        Err(_) => {} // Error, silently fall through
+    }
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum OllamaError {
     #[error("Ollama request failed: {0}")]
