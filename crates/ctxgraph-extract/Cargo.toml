@@ -25,6 +25,7 @@ composable = "0.9"
 ndarray = { workspace = true }
 tokenizers = "0.22"
 fastembed = { workspace = true }
+half = { workspace = true }
 
 [dev-dependencies]
 tempfile = "3"

@@ -1,13 +1,9 @@
-mod protocol;
-mod server;
-mod tools;
-
 use std::env;
 use std::path::PathBuf;
 
 use ctxgraph::Graph;
 use ctxgraph_embed::EmbedEngine;
-use server::McpServer;
+use ctxgraph_mcp::McpServer;
 
 /// Parse `--db <path>` from argv or fall back to CTXGRAPH_DB env var.
 /// Default: `.ctxgraph/graph.db` relative to the current directory.

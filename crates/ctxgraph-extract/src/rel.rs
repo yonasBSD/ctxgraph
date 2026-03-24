@@ -27,13 +27,16 @@ pub struct ExtractedRelation {
 
 /// Relation extraction engine — fully local, no external API calls.
 ///
-/// Extraction tiers:
-/// - **Model-based**: GLiNER multitask ONNX model for typed relation extraction.
-/// - **Heuristic**: Pattern-based keyword + proximity extraction (~0.51 F1).
+/// Extraction tiers (priority order):
+/// 1. **GLiREL**: Zero-shot relation extraction via DeBERTa scoring head.
+/// 2. **Model-based**: GLiNER multitask ONNX model for typed relation extraction.
+/// 3. **Heuristic**: Pattern-based keyword + proximity extraction (~0.51 F1).
 ///
 /// Experimental (opt-in via `CTXGRAPH_RELEX=1`):
 /// - **Relex**: gliner-relex ONNX model (joint NER + relation extraction).
 pub enum RelEngine {
+    /// GLiREL zero-shot relation extraction (highest quality).
+    Glirel(crate::glirel::GlirelEngine),
     /// Has both multitask model and optionally relex model.
     ModelBased(ModelBasedRelEngine),
     Heuristic,
@@ -143,9 +146,24 @@ impl ModelBasedRelEngine {
 }
 
 impl RelEngine {
-    /// Create a model-based engine if the multitask model is available,
-    /// otherwise fall back to heuristic mode.
+    /// Create a relation engine, trying backends in priority order:
+    /// GLiREL → GLiNER multitask → Heuristic.
     pub fn new(model_path: Option<&Path>, tokenizer_path: Option<&Path>) -> Result<Self, RelError> {
+        // Try GLiREL first — look for model in the standard models directory.
+        // The models_dir is the parent of model_path's grandparent
+        // (e.g. models/gliner-multitask-large-v0.5/onnx/model.onnx → models/).
+        // Also check common glirel model directories.
+        let glirel_dirs = glirel_candidate_dirs(model_path);
+        for dir in &glirel_dirs {
+            if dir.exists() {
+                match crate::glirel::GlirelEngine::new(dir) {
+                    Ok(engine) => return Ok(Self::Glirel(engine)),
+                    Err(_) => continue,
+                }
+            }
+        }
+
+        // Fall back to GLiNER multitask model.
         match (model_path, tokenizer_path) {
             (Some(mp), Some(tp)) if mp.exists() && tp.exists() => {
                 let engine = ModelBasedRelEngine::new(mp, tp)?;
@@ -157,7 +175,8 @@ impl RelEngine {
 
     /// Extract relations between entities — fully local, no API calls.
     ///
-    /// Uses heuristic keyword + proximity extraction (~0.51 F1).
+    /// When GLiREL is available, uses zero-shot neural scoring directly.
+    /// Otherwise falls back to heuristic keyword + proximity extraction (~0.51 F1).
     ///
     /// Environment variables:
     /// - `CTXGRAPH_RELEX=1`: Enable experimental relex ONNX tier
@@ -167,6 +186,12 @@ impl RelEngine {
         entities: &[ExtractedEntity],
         schema: &ExtractionSchema,
     ) -> Result<Vec<ExtractedRelation>, RelError> {
+        // GLiREL: zero-shot relation extraction — bypass heuristics entirely.
+        if let Self::Glirel(engine) = self {
+            let relation_labels: Vec<&str> = schema.relation_labels();
+            return engine.extract(text, entities, &relation_labels, 0.5);
+        }
+
         let mut relations = heuristic_relations(text, entities, schema);
 
         // Relex ONNX model (experimental — opt-in via CTXGRAPH_RELEX=1)
@@ -230,6 +255,36 @@ impl RelEngine {
 
         Ok(relations)
     }
+}
+
+/// Build candidate directories where a GLiREL model might live.
+///
+/// Checks both a sibling `glirel-large-v0/` directory next to the multitask
+/// model and the standard `~/.cache/ctxgraph/models/` location.
+fn glirel_candidate_dirs(model_path: Option<&Path>) -> Vec<std::path::PathBuf> {
+    let mut dirs = Vec::new();
+
+    if let Some(mp) = model_path {
+        // model_path is like `models/gliner-multitask-large-v0.5/onnx/model_int8.onnx`
+        // Go up to the models root and look for glirel-large-v0/
+        if let Some(models_root) = mp
+            .parent()
+            .and_then(|p| p.parent())
+            .and_then(|p| p.parent())
+        {
+            dirs.push(models_root.join("glirel-large-v0"));
+        }
+    }
+
+    // Standard cache location
+    if let Some(cache) = dirs::cache_dir() {
+        dirs.push(cache.join("ctxgraph/models/glirel-large-v0"));
+    }
+
+    // Local models/ directory
+    dirs.push(std::path::PathBuf::from("models/glirel-large-v0"));
+
+    dirs
 }
 
 /// Heuristic relation extraction using sentence-level co-occurrence with

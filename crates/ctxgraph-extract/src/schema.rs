@@ -136,16 +136,16 @@ impl Default for ExtractionSchema {
         // budget alongside the input text. They are used as the actual label
         // strings passed to the model for zero-shot extraction, and are more
         // semantically precise than the bare key names.
-        entity_types.insert("Person".into(), "person or engineer".into());
-        entity_types.insert("Component".into(), "software library or framework".into());
-        entity_types.insert("Service".into(), "cloud service or API".into());
+        entity_types.insert("Person".into(), "person, team, or role".into());
+        entity_types.insert("Component".into(), "software, tool, or product".into());
+        entity_types.insert("Service".into(), "service, platform, or API".into());
         entity_types.insert("Language".into(), "programming language".into());
         entity_types.insert("Database".into(), "database or data store".into());
-        entity_types.insert("Infrastructure".into(), "server or cloud platform".into());
-        entity_types.insert("Decision".into(), "architectural decision".into());
-        entity_types.insert("Constraint".into(), "technical constraint".into());
-        entity_types.insert("Metric".into(), "performance metric".into());
-        entity_types.insert("Pattern".into(), "design pattern".into());
+        entity_types.insert("Infrastructure".into(), "server, hardware, or cloud platform".into());
+        entity_types.insert("Decision".into(), "decision or policy".into());
+        entity_types.insert("Constraint".into(), "constraint or requirement".into());
+        entity_types.insert("Metric".into(), "metric or measurement".into());
+        entity_types.insert("Pattern".into(), "pattern or methodology".into());
 
         let mut relation_types = BTreeMap::new();
         relation_types.insert(

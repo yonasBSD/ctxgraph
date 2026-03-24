@@ -530,7 +530,7 @@ dependencies = [
 
 [[package]]
 name = "ctxgraph"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "chrono",
  "ctxgraph-extract",
@@ -546,20 +546,23 @@ dependencies = [
 
 [[package]]
 name = "ctxgraph-cli"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "chrono",
  "clap",
  "colored",
  "ctxgraph",
+ "ctxgraph-embed",
  "ctxgraph-extract",
+ "ctxgraph-mcp",
  "dotenvy",
  "serde_json",
+ "tokio",
 ]
 
 [[package]]
 name = "ctxgraph-embed"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "fastembed",
  "thiserror",
@@ -567,13 +570,14 @@ dependencies = [
 
 [[package]]
 name = "ctxgraph-extract"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "chrono",
  "composable",
  "dirs",
  "fastembed",
  "gline-rs",
+ "half",
  "indicatif 0.17.11",
  "ndarray",
  "orp",
@@ -591,7 +595,7 @@ dependencies = [
 
 [[package]]
 name = "ctxgraph-mcp"
-version = "0.6.0"
+version = "0.7.0"
 dependencies = [
  "chrono",
  "ctxgraph",

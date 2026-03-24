@@ -1,0 +1,167 @@
+[
+  {
+    "domain": "finance",
+    "text": "The risk management team chose Bloomberg Terminal over Refinitiv Eikon for real-time market data. Bloomberg's API integrates with our Python-based trading engine. The decision was constrained by a $50K annual budget cap and SOX compliance requirements.",
+    "expected_entities": [
+      {"name": "Bloomberg Terminal", "entity_type": "Component"},
+      {"name": "Refinitiv Eikon", "entity_type": "Component"},
+      {"name": "Python", "entity_type": "Language"},
+      {"name": "trading engine", "entity_type": "Service"},
+      {"name": "$50K annual budget cap", "entity_type": "Constraint"},
+      {"name": "SOX compliance", "entity_type": "Constraint"}
+    ],
+    "expected_relations": [
+      {"head": "risk management team", "relation": "chose", "tail": "Bloomberg Terminal"},
+      {"head": "risk management team", "relation": "rejected", "tail": "Refinitiv Eikon"},
+      {"head": "trading engine", "relation": "depends_on", "tail": "Python"},
+      {"head": "Bloomberg Terminal", "relation": "constrained_by", "tail": "$50K annual budget cap"}
+    ]
+  },
+  {
+    "domain": "finance",
+    "text": "We replaced our legacy COBOL-based clearing system with a Kotlin microservices architecture on AWS. The migration fixed the T+3 settlement bottleneck that caused failed trades during peak volume. The new system depends on Apache Kafka for event streaming.",
+    "expected_entities": [
+      {"name": "COBOL", "entity_type": "Language"},
+      {"name": "Kotlin", "entity_type": "Language"},
+      {"name": "clearing system", "entity_type": "Service"},
+      {"name": "AWS", "entity_type": "Infrastructure"},
+      {"name": "T+3 settlement bottleneck", "entity_type": "Constraint"},
+      {"name": "Apache Kafka", "entity_type": "Component"}
+    ],
+    "expected_relations": [
+      {"head": "Kotlin", "relation": "replaced", "tail": "COBOL"},
+      {"head": "Kotlin", "relation": "fixed", "tail": "T+3 settlement bottleneck"},
+      {"head": "clearing system", "relation": "depends_on", "tail": "Apache Kafka"}
+    ]
+  },
+  {
+    "domain": "finance",
+    "text": "The compliance officer deprecated the manual PDF report generation process after introducing an automated dashboard built on Tableau. The SEC audit requirement constrained the dashboard to retain 7 years of transaction history.",
+    "expected_entities": [
+      {"name": "compliance officer", "entity_type": "Person"},
+      {"name": "PDF report generation", "entity_type": "Component"},
+      {"name": "Tableau", "entity_type": "Component"},
+      {"name": "SEC audit requirement", "entity_type": "Constraint"}
+    ],
+    "expected_relations": [
+      {"head": "compliance officer", "relation": "deprecated", "tail": "PDF report generation"},
+      {"head": "compliance officer", "relation": "introduced", "tail": "Tableau"},
+      {"head": "Tableau", "relation": "constrained_by", "tail": "SEC audit requirement"}
+    ]
+  },
+  {
+    "domain": "healthcare",
+    "text": "The radiology department chose MONAI over TensorFlow for medical image segmentation. MONAI's DICOM integration depends on the OHIF Viewer. The decision was constrained by HIPAA data residency requirements, so all inference runs on-premise GPU servers.",
+    "expected_entities": [
+      {"name": "MONAI", "entity_type": "Component"},
+      {"name": "TensorFlow", "entity_type": "Component"},
+      {"name": "OHIF Viewer", "entity_type": "Component"},
+      {"name": "HIPAA", "entity_type": "Constraint"},
+      {"name": "GPU servers", "entity_type": "Infrastructure"}
+    ],
+    "expected_relations": [
+      {"head": "radiology department", "relation": "chose", "tail": "MONAI"},
+      {"head": "radiology department", "relation": "rejected", "tail": "TensorFlow"},
+      {"head": "MONAI", "relation": "depends_on", "tail": "OHIF Viewer"},
+      {"head": "MONAI", "relation": "constrained_by", "tail": "HIPAA"}
+    ]
+  },
+  {
+    "domain": "healthcare",
+    "text": "We replaced the HL7v2 messaging interface with FHIR R4 APIs for patient data exchange. The migration introduced Redox as the integration engine. Epic's MyChart depends on the FHIR endpoint for patient portal access.",
+    "expected_entities": [
+      {"name": "HL7v2", "entity_type": "Component"},
+      {"name": "FHIR R4", "entity_type": "Component"},
+      {"name": "Redox", "entity_type": "Service"},
+      {"name": "Epic", "entity_type": "Service"},
+      {"name": "MyChart", "entity_type": "Service"}
+    ],
+    "expected_relations": [
+      {"head": "FHIR R4", "relation": "replaced", "tail": "HL7v2"},
+      {"head": "FHIR R4", "relation": "introduced", "tail": "Redox"},
+      {"head": "MyChart", "relation": "depends_on", "tail": "FHIR R4"}
+    ]
+  },
+  {
+    "domain": "healthcare",
+    "text": "The CTO deprecated the on-premise Cerner EHR after a ransomware incident caused 3 days of downtime. The team chose Oracle Health Cloud as the replacement. The 99.99% uptime SLA constrained the migration to a zero-downtime blue-green deployment pattern.",
+    "expected_entities": [
+      {"name": "Cerner", "entity_type": "Service"},
+      {"name": "Oracle Health Cloud", "entity_type": "Service"},
+      {"name": "ransomware incident", "entity_type": "Constraint"},
+      {"name": "99.99% uptime SLA", "entity_type": "Metric"},
+      {"name": "blue-green deployment", "entity_type": "Pattern"}
+    ],
+    "expected_relations": [
+      {"head": "CTO", "relation": "deprecated", "tail": "Cerner"},
+      {"head": "ransomware incident", "relation": "caused", "tail": "99.99% uptime SLA"},
+      {"head": "Oracle Health Cloud", "relation": "replaced", "tail": "Cerner"},
+      {"head": "Oracle Health Cloud", "relation": "constrained_by", "tail": "99.99% uptime SLA"}
+    ]
+  },
+  {
+    "domain": "legal",
+    "text": "The legal ops team replaced Relativity with Everlaw for e-discovery. Everlaw's cloud-native architecture depends on Azure for document storage. The switch was constrained by FedRAMP certification requirements for government contracts.",
+    "expected_entities": [
+      {"name": "Relativity", "entity_type": "Component"},
+      {"name": "Everlaw", "entity_type": "Component"},
+      {"name": "Azure", "entity_type": "Infrastructure"},
+      {"name": "FedRAMP certification", "entity_type": "Constraint"}
+    ],
+    "expected_relations": [
+      {"head": "Everlaw", "relation": "replaced", "tail": "Relativity"},
+      {"head": "Everlaw", "relation": "depends_on", "tail": "Azure"},
+      {"head": "Everlaw", "relation": "constrained_by", "tail": "FedRAMP certification"}
+    ]
+  },
+  {
+    "domain": "manufacturing",
+    "text": "The plant manager chose Siemens MindSphere over PTC ThingWorx for IoT monitoring. The predictive maintenance system depends on Apache Spark for real-time sensor analytics. A 50ms latency constraint required edge computing nodes at each production line.",
+    "expected_entities": [
+      {"name": "Siemens MindSphere", "entity_type": "Component"},
+      {"name": "PTC ThingWorx", "entity_type": "Component"},
+      {"name": "Apache Spark", "entity_type": "Component"},
+      {"name": "50ms latency", "entity_type": "Metric"},
+      {"name": "edge computing nodes", "entity_type": "Infrastructure"}
+    ],
+    "expected_relations": [
+      {"head": "plant manager", "relation": "chose", "tail": "Siemens MindSphere"},
+      {"head": "plant manager", "relation": "rejected", "tail": "PTC ThingWorx"},
+      {"head": "predictive maintenance system", "relation": "depends_on", "tail": "Apache Spark"},
+      {"head": "edge computing nodes", "relation": "constrained_by", "tail": "50ms latency"}
+    ]
+  },
+  {
+    "domain": "education",
+    "text": "The university replaced Blackboard LMS with Canvas after student satisfaction surveys showed 40% dissatisfaction. Canvas depends on AWS for hosting. The migration introduced LTI 1.3 for third-party tool integration, deprecating the custom SOAP connectors.",
+    "expected_entities": [
+      {"name": "Blackboard", "entity_type": "Component"},
+      {"name": "Canvas", "entity_type": "Component"},
+      {"name": "AWS", "entity_type": "Infrastructure"},
+      {"name": "LTI 1.3", "entity_type": "Pattern"},
+      {"name": "SOAP connectors", "entity_type": "Component"}
+    ],
+    "expected_relations": [
+      {"head": "Canvas", "relation": "replaced", "tail": "Blackboard"},
+      {"head": "Canvas", "relation": "depends_on", "tail": "AWS"},
+      {"head": "Canvas", "relation": "introduced", "tail": "LTI 1.3"},
+      {"head": "Canvas", "relation": "deprecated", "tail": "SOAP connectors"}
+    ]
+  },
+  {
+    "domain": "government",
+    "text": "The agency chose Palantir Foundry for intelligence analysis, rejecting AWS GovCloud's custom solution. Foundry depends on PostgreSQL for metadata storage. The FedRAMP High authorization constrained all data to US-East-1 region.",
+    "expected_entities": [
+      {"name": "Palantir Foundry", "entity_type": "Component"},
+      {"name": "AWS GovCloud", "entity_type": "Infrastructure"},
+      {"name": "PostgreSQL", "entity_type": "Database"},
+      {"name": "FedRAMP High authorization", "entity_type": "Constraint"}
+    ],
+    "expected_relations": [
+      {"head": "agency", "relation": "chose", "tail": "Palantir Foundry"},
+      {"head": "agency", "relation": "rejected", "tail": "AWS GovCloud"},
+      {"head": "Palantir Foundry", "relation": "depends_on", "tail": "PostgreSQL"},
+      {"head": "Palantir Foundry", "relation": "constrained_by", "tail": "FedRAMP High authorization"}
+    ]
+  }
+]

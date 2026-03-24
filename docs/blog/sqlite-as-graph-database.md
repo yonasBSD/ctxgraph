@@ -21,6 +21,32 @@ That's four services for what is conceptually a simple thing: "store facts about
 
 We wanted something that ships as a single binary, works offline, and stores everything in a single file you can `cp` to a backup drive. SQLite was the obvious choice for storage. The question was whether it could handle graph operations.
 
+```mermaid
+flowchart LR
+    subgraph Traditional["Traditional Stack"]
+        direction TB
+        D["Docker"] --- N["Neo4j"]
+        O["OpenAI API"] --- EX["Extraction"]
+        P["Pinecone / Qdrant"] --- EM["Embeddings"]
+        PY["Python"] --- GL["Glue Code"]
+    end
+
+    subgraph CTX["ctxgraph"]
+        direction TB
+        BIN["Single Rust Binary"]
+        BIN --- SQ["SQLite File"]
+    end
+
+    Traditional -. "vs" .-> CTX
+
+    style Traditional fill:#fef2f2,stroke:#dc2626
+    style CTX fill:#f0fdf4,stroke:#16a34a
+    style BIN fill:#16a34a,color:#fff,stroke:#15803d
+    style SQ fill:#16a34a,color:#fff,stroke:#15803d
+```
+
+Four services, two network dependencies, and a Docker compose file -- or one binary and one file.
+
 ## The Bet: SQLite + Recursive CTEs = Graph Database
 
 The core insight is that a graph database is really two things: a storage format for nodes and edges, and a query engine that can walk those edges efficiently. SQLite handles the first part trivially. For the second part, recursive Common Table Expressions (CTEs) give you everything you need for multi-hop traversal.
@@ -124,6 +150,39 @@ JOIN entities ent ON ent.id = t.entity_id
 ORDER BY t.depth
 ```
 
+Here's what the traversal looks like on a small graph. Starting from "AuthService" at depth 0, the CTE walks outward one hop at a time:
+
+```mermaid
+flowchart LR
+    subgraph d0["Depth 0"]
+        A["AuthService"]
+    end
+    subgraph d1["Depth 1"]
+        B["JWT"]
+        C["Redis"]
+    end
+    subgraph d2["Depth 2"]
+        D["Postgres"]
+        E["SessionStore"]
+        F["TokenCache"]
+    end
+
+    A -- "uses" --> B
+    A -- "depends_on" --> C
+    B -- "stored_in" --> D
+    C -- "backs" --> E
+    C -- "backs" --> F
+
+    style A fill:#2563eb,color:#fff,stroke:#1e40af
+    style B fill:#7c3aed,color:#fff,stroke:#5b21b6
+    style C fill:#7c3aed,color:#fff,stroke:#5b21b6
+    style D fill:#059669,color:#fff,stroke:#047857
+    style E fill:#059669,color:#fff,stroke:#047857
+    style F fill:#059669,color:#fff,stroke:#047857
+```
+
+The CTE starts with "AuthService" (depth 0, blue), discovers "JWT" and "Redis" (depth 1, purple), then reaches "Postgres", "SessionStore", and "TokenCache" (depth 2, green). `UNION` deduplicates, so if two paths reach the same node, it appears only once.
+
 Let's break down what this does:
 
 1. **Base case**: Seed the traversal with the starting entity at depth 0.
@@ -164,6 +223,34 @@ Search is where things get interesting. We have three retrieval modes, each with
 1. **FTS5 keyword search** -- exact token matching via SQLite's built-in full-text search (BM25 ranking)
 2. **Semantic similarity** -- cosine similarity against embeddings from `all-MiniLM-L6-v2` (384 dimensions, runs locally via ONNX)
 3. **Graph traversal** -- walk edges from entities mentioned in the query
+
+Here's how data flows through the system, from ingestion to query:
+
+```mermaid
+flowchart TB
+    subgraph Ingestion["Ingestion Pipeline"]
+        direction LR
+        IN["Text Input"] --> NER["GLiNER NER\n(ONNX)"]
+        NER --> REL["Heuristic\nRelations"]
+        REL --> EMB["Embedding\n(MiniLM)"]
+        EMB --> DB[("SQLite\nStorage")]
+    end
+
+    subgraph Query["Query Pipeline"]
+        direction LR
+        Q["Query"] --> FTS["FTS5\nKeyword Search"]
+        Q --> SEM["Embedding\nCosine Similarity"]
+        Q --> CTE["Recursive CTE\nGraph Walk"]
+        FTS --> RRF["RRF Fusion"]
+        SEM --> RRF
+        CTE --> RRF
+        RRF --> RES["Ranked Results"]
+    end
+
+    Ingestion ~~~ Query
+```
+
+Three independent retrieval modes run in parallel, each producing a ranked list. Reciprocal Rank Fusion combines them without needing comparable scores.
 
 The problem: how do you combine ranked results from three systems with completely different scoring scales? BM25 scores, cosine similarities, and graph depth are not comparable.
 

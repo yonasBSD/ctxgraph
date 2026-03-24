@@ -101,6 +101,8 @@ impl McpServer {
                     "traverse" => ctx.traverse(args).await,
                     "traverse_batch" => ctx.traverse_batch(args).await,
                     "find_precedents" => ctx.find_precedents(args).await,
+                    "list_entities" => ctx.list_entities(args).await,
+                    "export_graph" => ctx.export_graph(args).await,
                     other => Err(format!("unknown tool: {other}")),
                 };
 

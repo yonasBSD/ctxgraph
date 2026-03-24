@@ -2,6 +2,7 @@ pub mod decisions;
 pub mod entities;
 pub mod init;
 pub mod log;
+pub mod mcp;
 pub mod models;
 pub mod query;
 pub mod stats;

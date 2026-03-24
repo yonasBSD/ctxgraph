@@ -269,6 +269,91 @@ impl ToolContext {
         Ok(json!(results))
     }
 
+    /// Tool: list_entities
+    /// List entities in the graph, optionally filtered by type.
+    pub async fn list_entities(&self, args: Value) -> Result<Value, String> {
+        let entity_type = args["entity_type"].as_str().map(|s| s.to_string());
+        let limit = args["limit"].as_u64().unwrap_or(100) as usize;
+        let offset = args["offset"].as_u64().unwrap_or(0) as usize;
+
+        let graph = self.graph.lock().map_err(|e| e.to_string())?;
+
+        let entities = graph
+            .list_entities(entity_type.as_deref(), limit)
+            .map_err(|e| e.to_string())?;
+
+        // Skip `offset` entities (list_entities doesn't support offset natively)
+        let entities: Vec<Value> = entities
+            .into_iter()
+            .skip(offset)
+            .map(|e| serde_json::to_value(e).unwrap_or(Value::Null))
+            .collect();
+
+        Ok(json!({
+            "entities": entities,
+            "count": entities.len(),
+        }))
+    }
+
+    /// Tool: export_graph
+    /// Export all entities and edges from the graph.
+    pub async fn export_graph(&self, args: Value) -> Result<Value, String> {
+        let entity_type = args["entity_type"].as_str().map(|s| s.to_string());
+        let include_episodes = args["include_episodes"].as_bool().unwrap_or(false);
+        let limit = args["limit"].as_u64().unwrap_or(10000) as usize;
+
+        let graph = self.graph.lock().map_err(|e| e.to_string())?;
+
+        let entities = graph
+            .list_entities(entity_type.as_deref(), limit)
+            .map_err(|e| e.to_string())?;
+
+        // Collect all edges for all entities
+        let mut all_edges = Vec::new();
+        let mut seen_edge_ids = std::collections::HashSet::new();
+        for entity in &entities {
+            let edges = graph
+                .get_edges_for_entity(&entity.id)
+                .map_err(|e| e.to_string())?;
+            for edge in edges {
+                if seen_edge_ids.insert(edge.id.clone()) {
+                    all_edges.push(edge);
+                }
+            }
+        }
+
+        let entities_json: Vec<Value> = entities
+            .into_iter()
+            .map(|e| serde_json::to_value(e).unwrap_or(Value::Null))
+            .collect();
+
+        let edges_json: Vec<Value> = all_edges
+            .into_iter()
+            .map(|e| serde_json::to_value(e).unwrap_or(Value::Null))
+            .collect();
+
+        let mut result = json!({
+            "entities": entities_json,
+            "edges": edges_json,
+            "entity_count": entities_json.len(),
+            "edge_count": edges_json.len(),
+        });
+
+        if include_episodes {
+            let episodes = graph
+                .list_episodes(limit, 0)
+                .map_err(|e| e.to_string())?;
+            let episodes_json: Vec<Value> = episodes
+                .into_iter()
+                .map(|e| serde_json::to_value(e).unwrap_or(Value::Null))
+                .collect();
+            result["episodes"] = json!(episodes_json);
+            result["episode_count"] = json!(episodes_json.len());
+        }
+
+        Ok(result)
+    }
+
     /// Tool: traverse_batch
     /// Traverse multiple entities in one call, returning a merged result.
     ///
@@ -418,6 +503,30 @@ pub fn tools_list() -> Value {
                         "limit": {"type": "integer", "description": "Max results (default 5)"}
                     },
                     "required": ["context"]
+                }
+            },
+            {
+                "name": "list_entities",
+                "description": "List entities in the graph with optional type filter and pagination. Useful for graph visualization and exploration.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "entity_type": {"type": "string", "description": "Filter by entity type (e.g. 'person', 'technology', 'component')"},
+                        "limit": {"type": "integer", "description": "Max results (default 100)"},
+                        "offset": {"type": "integer", "description": "Skip first N results for pagination (default 0)"}
+                    }
+                }
+            },
+            {
+                "name": "export_graph",
+                "description": "Export all entities and edges from the graph. Optionally include episodes and filter by entity type.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "entity_type": {"type": "string", "description": "Filter entities by type"},
+                        "include_episodes": {"type": "boolean", "description": "Include episodes in export (default false)"},
+                        "limit": {"type": "integer", "description": "Max entities to export (default 10000)"}
+                    }
                 }
             }
         ]

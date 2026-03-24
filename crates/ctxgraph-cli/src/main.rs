@@ -72,6 +72,22 @@ enum Commands {
         #[command(subcommand)]
         action: ModelsAction,
     },
+
+    /// Run the MCP server (JSON-RPC over stdio)
+    Mcp {
+        #[command(subcommand)]
+        action: McpAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum McpAction {
+    /// Start the MCP server on stdio
+    Start {
+        /// Path to the graph database (overrides CTXGRAPH_DB env var)
+        #[arg(long)]
+        db: Option<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -154,6 +170,9 @@ fn main() {
         Commands::Stats => commands::stats::run(),
         Commands::Models { action } => match action {
             ModelsAction::Download => commands::models::download(),
+        },
+        Commands::Mcp { action } => match action {
+            McpAction::Start { db } => commands::mcp::start(db),
         },
     };
 
