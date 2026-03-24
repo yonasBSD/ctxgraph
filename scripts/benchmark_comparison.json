@@ -1,0 +1,326 @@
+{
+  "ctxgraph": {
+    "version": "0.6.0",
+    "infrastructure": "fully local (ONNX models)",
+    "avg_entity_f1": 0.8372,
+    "avg_relation_f1": 0.7628,
+    "combined_f1": 0.8,
+    "api_calls": 0,
+    "cost": "$0",
+    "latency_50_episodes": "~2s"
+  },
+  "graphiti": {
+    "version": "0.28.2",
+    "infrastructure": "Neo4j + OpenAI gpt-4o",
+    "avg_entity_f1": 0.5699,
+    "avg_relation_f1_raw": 0.0,
+    "avg_relation_f1_mapped": 0.1037,
+    "combined_f1_raw": 0.285,
+    "combined_f1_mapped": 0.3368,
+    "api_calls": "~200+ (OpenAI)",
+    "cost": "~$2-5",
+    "latency_50_episodes": "~8min"
+  },
+  "per_episode": [
+    {
+      "episode": 1,
+      "graphiti_entity_f1": 0.75,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 2,
+      "graphiti_entity_f1": 0.6667,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.6667
+    },
+    {
+      "episode": 3,
+      "graphiti_entity_f1": 0.5714,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 4,
+      "graphiti_entity_f1": 0.75,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.4
+    },
+    {
+      "episode": 5,
+      "graphiti_entity_f1": 0.5,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 6,
+      "graphiti_entity_f1": 0.2857,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 7,
+      "graphiti_entity_f1": 0.2857,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 8,
+      "graphiti_entity_f1": 0.6,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 9,
+      "graphiti_entity_f1": 0.5,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 10,
+      "graphiti_entity_f1": 0.5,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.4
+    },
+    {
+      "episode": 11,
+      "graphiti_entity_f1": 0.8571,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.4
+    },
+    {
+      "episode": 12,
+      "graphiti_entity_f1": 0.75,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 13,
+      "graphiti_entity_f1": 0.0,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 14,
+      "graphiti_entity_f1": 0.75,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 15,
+      "graphiti_entity_f1": 0.2222,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 16,
+      "graphiti_entity_f1": 0.8889,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 17,
+      "graphiti_entity_f1": 0.4444,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 18,
+      "graphiti_entity_f1": 0.4444,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 19,
+      "graphiti_entity_f1": 0.75,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 20,
+      "graphiti_entity_f1": 0.25,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 21,
+      "graphiti_entity_f1": 1.0,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 22,
+      "graphiti_entity_f1": 0.0,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 23,
+      "graphiti_entity_f1": 0.75,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 24,
+      "graphiti_entity_f1": 0.8571,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 25,
+      "graphiti_entity_f1": 0.3333,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 26,
+      "graphiti_entity_f1": 0.8571,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 27,
+      "graphiti_entity_f1": 0.5714,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 28,
+      "graphiti_entity_f1": 0.8,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 1.0
+    },
+    {
+      "episode": 29,
+      "graphiti_entity_f1": 0.8571,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.25
+    },
+    {
+      "episode": 30,
+      "graphiti_entity_f1": 0.0,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 31,
+      "graphiti_entity_f1": 0.0,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 32,
+      "graphiti_entity_f1": 0.8889,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 33,
+      "graphiti_entity_f1": 0.5,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 34,
+      "graphiti_entity_f1": 0.2857,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 35,
+      "graphiti_entity_f1": 0.75,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 36,
+      "graphiti_entity_f1": 0.8571,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 37,
+      "graphiti_entity_f1": 0.6,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 38,
+      "graphiti_entity_f1": 0.2857,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 39,
+      "graphiti_entity_f1": 0.8571,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 40,
+      "graphiti_entity_f1": 0.6,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.4
+    },
+    {
+      "episode": 41,
+      "graphiti_entity_f1": 0.2857,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 42,
+      "graphiti_entity_f1": 0.9091,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.6667
+    },
+    {
+      "episode": 43,
+      "graphiti_entity_f1": 0.0,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 44,
+      "graphiti_entity_f1": 0.6667,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.5
+    },
+    {
+      "episode": 45,
+      "graphiti_entity_f1": 0.25,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 46,
+      "graphiti_entity_f1": 0.75,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 47,
+      "graphiti_entity_f1": 0.6667,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 48,
+      "graphiti_entity_f1": 0.75,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 49,
+      "graphiti_entity_f1": 1.0,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.0
+    },
+    {
+      "episode": 50,
+      "graphiti_entity_f1": 0.8,
+      "graphiti_rel_f1_raw": 0.0,
+      "graphiti_rel_f1_mapped": 0.5
+    }
+  ]
+}
