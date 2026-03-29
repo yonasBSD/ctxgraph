@@ -1,257 +1,216 @@
 # ctxgraph — Roadmap
 
+> Privacy-first knowledge graph engine. Better quality, 6x cheaper, 3x faster than Graphiti.
+
 ---
 
 ## Timeline
 
 ```
-        Week 1-2         Week 3-4          Week 5         Week 6
-      ┌──────────┐    ┌──────────┐    ┌──────────┐    ┌──────────┐
-      │  v0.1    │    │  v0.2    │    │  v0.3    │    │  v0.4    │
-      │  Core    │───▶│ GLiNER2  │───▶│ MCP +    │───▶│ Tier 2 + │
-      │  Engine  │    │ Extract  │    │ Search   │    │ Git Watch│
-      │          │    │          │    │          │    │          │
-      │  DONE    │    │ HARD     │    │ DEMO     │    │ LAUNCH   │
-      └──────────┘    └──────────┘    └──────────┘    └──────────┘
-           │                                               │
-           │                                               │
-           │         ── open source, HN post, get feedback ─
-           │                                               │
-        Week 7-8          Week 9
-      ┌──────────┐    ┌──────────┐
-      │  v0.5    │    │  v1.0    │
-      │ Tier 3 + │───▶│Production│
-      │ Ingest   │    │ Ready    │
-      │          │    │          │
-      │ USER-    │    │ SHIP     │
-      │ GUIDED   │    │          │
-      └──────────┘    └──────────┘
+     Phase 1 (Wk 1-3)      Phase 2 (Wk 4-6)     Phase 3 (Wk 7-9)     Phase 4 (Wk 10-12)
+    +------------------+  +------------------+  +------------------+  +------------------+
+    | Smart Extraction |  | Privacy +        |  | Agent Features   |  | Polish + Launch  |
+    |                  |  | Cross-Domain     |  |                  |  |                  |
+    | Confidence gate  |  | CloakPipe integ  |  | Reflect API      |  | Web dashboard    |
+    | LLM fallback     |  | Cross-domain     |  | (agent reflection|  | Python SDK       |
+    | Ollama + cloud   |  | benchmarks       |  |  + memory)       |  | Docs + guides    |
+    | GLiREL primary   |  | Entity cache     |  | Dev memory       |  | Homebrew update  |
+    | Cost tracking    |  | Threshold tuning |  | (connectors)     |  | Blog + HN        |
+    |                  |  |                  |  |                  |  |                  |
+    | CORE ENGINE      |  | PRIVACY + QUALITY|  | AGENT LAYER      |  | SHIP + LAUNCH    |
+    +--------+---------+  +--------+---------+  +--------+---------+  +------------------+
+             |                     |                     |
+             |    Benchmarks ------+                     |
+             |    vs Graphiti                            |
+             |                                          |
+         Library usable as Graphiti alternative     Screenpipe pipe PR
 ```
-
-Estimated total: **~9 weeks** (solo, focused).
-
-**Key change from original 10-phase plan**: Compressed from 10 versions to 6. GLiNER2's unified model (entities + relations in one pass) eliminates a full version. Search and MCP are merged because MCP without search is useless. Real user feedback after v0.4 guides the remaining work.
 
 ---
 
-## Version Detail
+## What Exists (v0.7.0 — Shipped)
 
-### v0.1 — Core Engine (DONE)
-
-| Deliverable | Description | Status |
+| Component | Status | Notes |
 |---|---|---|
-| `ctxgraph-core` crate | Types, SQLite storage, FTS5, bi-temporal logic | Done |
-| `ctxgraph-cli` crate | CLI: init, log, query, entities, decisions, stats | Done |
-| 24 tests | Episode/Entity/Edge CRUD, FTS5, traversal, temporal | Done |
-
-**Shipped**: Working context graph that stores and retrieves episodes. No extraction — structured input only. Storage and query model proven.
+| `ctxgraph-core` | Shipped | SQLite + FTS5 + WAL, bi-temporal edges, RRF search, BFS traversal |
+| `ctxgraph-extract` | Shipped | GLiNER2 + GLiREL + LLM fallback pipeline, confidence gate, temporal parsing |
+| `ctxgraph-embed` | Shipped | fastembed, all-MiniLM-L6-v2, 384-dim vectors |
+| `ctxgraph-mcp` | Shipped | 8 MCP tools (add_episode, search, traverse, find_precedents, etc.) |
+| `ctxgraph-cli` | Shipped | init, log, query, entities, stats, models, mcp start |
+| Homebrew tap | Shipped | macOS + Linux prebuilt binaries |
+| GLiREL integration | Shipped | Zero-shot relation extraction, schema-aware direction resolution |
+| LLM fallback | Shipped | Confidence gate, OpenRouter/Ollama, entity+relation extraction |
+| Cross-domain benchmarks | Shipped | 10 episodes across 6 domains, 0.552 F1 with Gemini Flash |
 
 ---
 
-### v0.2 — GLiNER2 Unified Extraction (~2 weeks)
+## Phase 1: Smart Extraction Engine (Weeks 1-3) — CORE ENGINE [DONE]
+
+The tiered extraction pipeline is built and benchmarked:
+
+- Confidence gate detects when local models aren't confident
+- LLM fallback extracts entities + relations in ONE call (vs Graphiti's 6)
+- GLiREL handles relations locally when entities are good
+- Schema-aware direction resolution fixes GLiREL head/tail errors
+- Entity canonicalization handles verbose LLM names
+- Fuzzy matching for evaluation
+
+### Benchmark Results
+
+| Mode | Tech F1 | Cross-domain F1 | Cost per 1000 eps |
+|---|---|---|---|
+| Local only | **0.800** | 0.325 | $0 |
+| + Llama 3.2 3B (Ollama) | **0.800** | 0.472 | $0 |
+| + Qwen 2.5 7B (Ollama) | **0.800** | 0.508 | $0 |
+| + Gemini Flash (cloud) | **0.800** | **0.552** | ~$0.05 |
+| Graphiti (GPT-4o) | 0.337 | varies | ~$30 |
+
+---
+
+## Phase 2: Privacy + Cross-Domain Quality (Weeks 4-6)
+
+### CloakPipe Integration
+
+CloakPipe (already built as a separate product) gets integrated into the extraction pipeline:
 
 | Deliverable | Description |
 |---|---|
-| `ctxgraph-extract` crate | ONNX-based extraction pipeline |
-| Unified GLiNER2 | Entity + relation extraction in one model pass |
-| Temporal heuristics | 5-layer date parser |
-| Extraction benchmark | 50 annotated episodes, F1 ≥ 0.80 |
-| Model management | Download, cache, verify, license check |
+| PII scanner in extraction pipeline | Detect API keys, passwords, emails, tokens, names before LLM call |
+| Reversible redaction | Replace PII with deterministic placeholders, map back after LLM response |
+| Encrypted entity cache | AES-256-GCM vault for entity type resolutions — same pattern never costs twice |
+| Config flag | `[privacy] cloakpipe = true` in ctxgraph.toml |
 
-**Key milestone**: `ctxgraph log "Chose Postgres over SQLite for billing"` automatically extracts entities (Postgres, SQLite, billing) AND relations (chose, rejected) in a single ~10ms inference pass.
+**Why this matters**: Even with Gemini Flash at $0.05/1000 episodes, enterprise users won't send raw text to a cloud LLM. CloakPipe makes the cloud tier enterprise-safe.
 
-**Risk**: Medium-High. This is the hardest phase. ONNX integration with GLiNER2's specific tensor format requires careful engineering. The `ort` crate works but has rough edges with custom architectures. Budget 2 full weeks.
-
-**What could go wrong**:
-- GLiNER2 ONNX export doesn't exist or doesn't work → fallback to separate GLiNER2 (entities only) + GLiREL (relations), reverting to the two-model approach
-- Extraction quality < 0.80 F1 → investigate, tune threshold, consider different checkpoint
-- `ort` crate issues with GLiNER2 architecture → file issue upstream, work around
-
----
-
-### v0.3 — MCP Server + Search (~1 week)
+### Cross-Domain Quality Improvements
 
 | Deliverable | Description |
 |---|---|
-| `ctxgraph-embed` crate | all-MiniLM-L6-v2 ONNX for 384-dim embeddings |
-| `ctxgraph-mcp` crate | MCP server with stdio transport |
-| RRF fusion | FTS5 + semantic + graph traversal merged |
-| 5 MCP tools | add_episode, search, get_decision, traverse, find_precedents |
+| Expand cross-domain benchmarks | 50+ episodes across 10+ domains |
+| Entity cache warming | Pre-populate common entity resolutions to reduce initial LLM costs |
+| Threshold tuning | Optimize confidence thresholds per entity type and domain |
+| Better LLM prompts | Domain-specific prompt variants for finance, healthcare, legal |
+| Cost dashboard | Track local vs LLM episodes, tokens used, cost per domain |
 
-**Key milestone**: DEMO READY. Can show ctxgraph working as memory for Claude Desktop/Cursor. This is when you write the "SQLite for context graphs" blog post.
+### Target Metrics
 
-**Risk**: Low. MCP is well-documented. Embedding model is straightforward. RRF is ~20 lines of code.
-
----
-
-### v0.4 — Tier 2 + Git Watch (~1 week)
-
-| Deliverable | Description |
+| Metric | Target |
 |---|---|
-| Coreference resolution | Rule-based pronoun → entity mapping |
-| Fuzzy entity dedup | Jaro-Winkler + alias groups |
-| `ctxgraph watch --git` | Auto-capture git commits as episodes |
-
-**Key milestone**: LAUNCH READY. Extraction quality hits ~90%. Passive capture solves ingestion friction. Open source, post on HN, get real users.
-
-**Risk**: Low. All techniques well-understood. Git watch is simple subprocess + episode creation.
-
-**Why git watch matters**: This solves the #1 tool adoption killer. People stop manually logging by day 3. `ctxgraph watch --git` captures context passively from something they're already doing (committing code). Low effort, high capture rate.
+| Tech F1 (local only) | >= 0.800 (maintain) |
+| Cross-domain F1 (Gemini Flash) | >= 0.650 |
+| Cross-domain F1 (Ollama 7B) | >= 0.550 |
+| LLM escalation rate (mixed workload) | <= 30% |
 
 ---
 
-### v0.5 — Tier 3 + Bulk Ingest (~2 weeks, user-guided)
+## Phase 3: Agent Features (Weeks 7-9)
 
-| Deliverable | Description |
+### Reflect API — Reflection for Agents
+
+Add a `reflect` operation to the MCP server and Rust SDK. Agents can ask ctxgraph to **reflect** on its knowledge — finding contradictions, gaps, patterns, and insights across the graph.
+
+| MCP Tool | Description |
 |---|---|
-| LLM provider abstraction | Ollama + OpenAI-compatible APIs |
-| Contradiction detection | Invalidate conflicting edges via LLM |
-| Community summarization | Cluster-level summaries |
-| Bulk ingest | JSONL/CSV import, stdin piping |
-| Built-in schemas | default, developer, support, finance |
-| Export | JSON/CSV graph export |
+| `ctxgraph_reflect` | Analyze the graph for contradictions, patterns, and gaps |
+| `ctxgraph_reflect_on` | Reflect on a specific entity or topic |
+| `ctxgraph_suggest` | Suggest related context the agent should consider |
 
-**Key milestone**: Handles messy, unstructured text. Quality hits ~93-95% with Tier 3.
+**How it works**: Reflect traverses the graph, finds clusters of related entities, detects temporal contradictions (e.g., "chose X" followed by "replaced X" without "deprecated X"), and surfaces patterns the agent might not have asked about.
 
-**Risk**: Medium. LLM output parsing is unpredictable. Mitigated by structured JSON mode and fallback to Tier 1.
+**Why this matters**: Current MCP tools are reactive — the agent asks, ctxgraph answers. Reflect is proactive — ctxgraph tells the agent what it should know. This is the "memory layer for agents" use case.
 
-**What to build here depends on user feedback from the v0.4 launch.** If nobody asks for Tier 3 but everyone wants bulk ingest, prioritize accordingly. Don't build features in a vacuum.
-
----
-
-### v1.0 — Production Ready (~1 week)
-
-| Deliverable | Description |
-|---|---|
-| Benchmarks | criterion at 1K/10K/100K scale |
-| Documentation | Rustdoc, user guide, MCP setup guide |
-| Pre-built binaries | Linux, macOS, Windows via CI |
-| crates.io publish | All crates published |
-
-**Key milestone**: Ship it. Stable APIs, full docs, pre-built binaries.
-
----
-
-## Dependency Graph
-
-```
-v0.1 (Core) ── DONE
- │
- └──▶ v0.2 (GLiNER2 Unified Extraction)
-       │
-       └──▶ v0.3 (MCP + Search) ── DEMO MILESTONE
-             │
-             └──▶ v0.4 (Tier 2 + Git Watch) ── LAUNCH MILESTONE
-                   │
-                   └──▶ v0.5 (Tier 3 + Ingest) ── user-guided
-                         │
-                         └──▶ v1.0 (Production)
+```rust
+// Agent asks: "what should I know about the auth system?"
+let insights = graph.reflect_on("auth")?;
+// Returns:
+// - "JWT was chosen over Redis sessions (March 2026)"
+// - "Contradiction: JWT was marked as 'stateless' but SessionManager still depends on Redis"
+// - "Gap: no test coverage recorded for auth middleware since migration"
 ```
 
-Linear dependency chain. Each version builds on the previous. No parallel tracks to manage.
+### Developer Memory (Use Case Layer)
+
+The dev memory engine features from the earlier product doc, now scoped as a **use case** on top of the core engine:
+
+| Deliverable | Description | Crate |
+|---|---|---|
+| `ctxgraph-ingest` | Connector framework + git/shell/FS connectors | New |
+| Git connector | git2-rs: commits, branches, diffs, authors -> entities + edges | ctxgraph-ingest |
+| Shell history connector | bash/zsh/fish parsing -> command + error entities | ctxgraph-ingest |
+| FS watcher connector | notify crate: file events | ctxgraph-ingest |
+| Daemon mode | Background process: connectors + MCP server | ctxgraph-cli |
+
+---
+
+## Phase 4: Polish + Launch (Weeks 10-12)
+
+| Deliverable | Description |
+|---|---|
+| Web dashboard | Graph visualization (inspired by Rowboat Labs graph UI) |
+| Python SDK | `pip install ctxgraph` via PyO3 bindings |
+| Documentation | User guide, API docs, MCP setup for Claude Code + Cursor |
+| Homebrew update | Updated formula with LLM tier support |
+| Blog post | "How ctxgraph Gives You Graphiti-Level Quality at 6x Lower Cost" |
+| HN Show HN | Launch with benchmark comparison and cost analysis |
+
+---
+
+## Competitive Positioning
+
+| | ctxgraph | Graphiti (GPT-4o-mini + Neo4j) | Screenpipe | CodeYam |
+|---|---|---|---|---|
+| Approach | Local ONNX + 1 LLM call fallback | 6 LLM calls per episode | Screen recording + OCR | Session transcript rules |
+| Tech F1 (fair h2h) | **0.846** | 0.601 | No extraction | No extraction |
+| Cross-domain F1 (fair h2h) | **0.650** | 0.474 | No extraction | No extraction |
+| Tech relation F1 | **0.714** | 0.349 | — | — |
+| Cross-domain relation F1 | **0.457** | 0.092 | — | — |
+| Cost per 1000 episodes | **$0.30** | $1.80 | $0 (no extraction) | $0 (no extraction) |
+| Cost (tech, local-only) | **$0** | $1.80 | — | — |
+| Query latency (fused) | **<15ms** | ~300ms | ~1ms (FTS5 only) | N/A |
+| Graph traversal | **<5ms** (recursive CTE) | 5-50ms (Cypher) | None | None |
+| Privacy | **CloakPipe PII stripping** | Data sent to OpenAI | Local-first | Local (repo-scoped) |
+| LLM calls per episode | **0 (tech) / 1 (cross-domain)** | **6 (always)** | 0 | 0 |
+| Infrastructure | SQLite (single file) | Neo4j + Docker + Python | Desktop app | npm package |
+| Works offline? | **Yes** | No | Yes | Yes |
+| Works with Ollama? | **Yes** | No | N/A | N/A |
+| Entity dedup | **Jaro-Winkler + alias table** | Neo4j merge | None | None |
+| Temporal model | **Bi-temporal** | Point-in-time | None | None |
+| MCP Support | Native | Yes | Yes | No |
 
 ---
 
 ## Success Metrics
 
-| Metric | Target | Measured at |
-|---|---|---|
-| Extraction F1 (entities) | ≥ 0.80 on benchmark corpus | v0.2 |
-| Extraction F1 (Tier 1+2) | ≥ 0.90 on semi-structured text | v0.4 |
-| Episode ingestion latency (Tier 1) | < 15ms | v0.2 |
-| Search latency (RRF fused) | < 100ms at 10K episodes | v0.3 |
-| Binary size | < 50MB (without models) | v1.0 |
-| Cold startup | < 2s (model load) | v0.2 |
-| Test count | ≥ 80 | v1.0 |
-| Zero external services | True for Tier 1+2 | Always |
-| Time to first demo | ≤ 5 weeks from start | v0.3 |
+### Phase 2 (Week 6)
+- CloakPipe integration started
+- Cross-domain F1 >= 0.650 with Gemini Flash
+- Cost tracking showing 6x cost savings vs Graphiti
+
+### Month 3
+- 100+ GitHub stars
+- Reflect API shipped and documented
+- Python SDK on PyPI
+- Blog post + HN submission
+
+### Month 6
+- 500+ GitHub stars
+- Featured in developer newsletter or podcast
+- Recognized as privacy-first Graphiti alternative
+- Screenpipe pipe published
 
 ---
 
-## What's NOT in v1.0
+## Business Model
 
-Explicitly deferred:
+Three-tier open-core:
 
-- **HNSW index for embeddings** — Brute-force cosine is fine under 100K episodes. `usearch` crate is ready when needed.
-- **Multi-user / auth** — ctxgraph is single-user. Multi-user requires server mode.
-- **GPU acceleration** — CPU-only. GPU via ort features is possible but not prioritized.
-- **Graph visualization** — No built-in UI. Export to JSON, use external tools.
-- **Schema marketplace** — Ship 4 built-in schemas. Let community emerge organically from adoption, not from an empty store.
-- **India fintech / government schemas** — Real verticals, but premature without 100+ users of the default schema. Build the tool, get adoption, then pursue verticals.
-- **Full PR parsing / DevTrace integration** — `ctxgraph watch --git` covers commit messages. Full PR analysis is DevTrace territory.
-- **Plugin system** — Custom extractors are Rust traits only. No dynamic loading.
-
----
-
-## Monetization Strategy
-
-### Tier 1: Within 6 months of traction
-
-**ctxgraph Cloud — Hosted sync for teams**
-
-The free version is local-only. One developer, one machine. The moment a second person needs to query the same decision graph, they need sync.
-
-- **Free**: local SQLite, single user, unlimited episodes
-- **Team ($15/user/month)**: sync graph across team via hosted service, shared MCP server, role-based read/write, SSO
-
-Implementation: Litestream or Turso for SQLite replication. Local-first (works offline), syncs when connected. Same model as Obsidian (local files, paid sync).
-
-**GitHub App / Integration**
-
-A GitHub App that auto-ingests PRs, issues, and review comments into a hosted ctxgraph instance.
-
-- **Free**: public repos, last 100 PRs
-- **Pro ($29/month per repo)**: unlimited history, private repos, team access, MCP endpoint for the repo's graph
-
-GitHub Marketplace distribution. One-click install, no CLI, no binary, no config.
-
-### Tier 2: At 1000+ stars / real adoption
-
-**Vertical schema packs**
-
-Deeply tuned schemas for specific industries with domain-specific entity types, relation types, and extraction rules.
-
-- Fintech lending pack ($99): RBI compliance entities, loan approval decision templates, exception tracking with regulatory linkage
-- Healthcare pack ($99): HIPAA-aware entity types, clinical decision trace templates, drug interaction relationship types
-- E-commerce support pack ($49): Refund/return decision templates, customer churn risk entities, escalation path tracking
-
-**Enterprise governance add-on ($200/month)**
-
-- Role-based access control on graph segments
-- Audit log of who queried what and when
-- Data retention policies (auto-expire decisions older than N days)
-- Export to compliance formats (SOC2, ISO 27001 evidence)
-- Priority support
-
-### Tier 3: 12+ months
-
-**Managed ctxgraph for AI agent platforms**
-
-As AI agent platforms grow (LangGraph, CrewAI, AutoGen), they all need persistent memory. ctxgraph-core as an embedded Rust library becomes the default choice.
-
-- Agent memory API ($0.001 per episode ingested, $0.0005 per query)
-- Hosted ctxgraph instance per agent deployment, multi-tenant with strict isolation
-- REST API + MCP endpoint, auto-scaling, managed backups
-
-**Consulting and custom deployments**
-
-- Custom schema development: $2000-5000 per engagement
-- On-premise deployment setup: $3000-8000
-- Integration with internal tools: $5000-15000
-- Training for engineering teams: $1500/day
-
-### Phased approach
-
-| Phase | Timeline | Focus |
+| Tier | Price | Includes |
 |---|---|---|
-| Phase 1 | 0-6 months | Ship open-source, build community, get stars. Zero monetization. GitHub Sponsors only. |
-| Phase 2 | 6-12 months | Launch ctxgraph Cloud (team sync). First paid product. |
-| Phase 3 | 12-18 months | GitHub App for zero-setup DevTrace. Distribution play via GitHub Marketplace. |
-| Phase 4 | 18+ months | Vertical schema packs and enterprise governance based on actual demand. |
+| OSS (Free) | $0 | Core engine, local extraction, Ollama support, MCP server, CLI, Rust SDK |
+| Pro | $15/month | Managed CloakPipe cloud, Gemini Flash integration, entity cache sync, web dashboard, priority support |
+| Enterprise | Custom | SSO, audit logging, compliance export, team graph federation, dedicated support |
 
-### What NOT to do
-
-Don't add "pro features" to the CLI that gate basic functionality. Don't make Tier 3 (LLM integration) paid-only. Don't charge for the MCP server. Keep the core tool completely free and open. The money comes from team collaboration, hosted infrastructure, and enterprise compliance — not from nickel-and-diming solo developers. The solo dev using ctxgraph for free today is the engineering lead buying ctxgraph Cloud for their team next year.
+The free tier handles tech text at full quality with zero cost. Pro adds cloud LLM quality + managed privacy for cross-domain enterprise use.
 
 ---
 
@@ -259,8 +218,8 @@ Don't add "pro features" to the CLI that gate basic functionality. Don't make Ti
 
 | Risk | Impact | Mitigation |
 |---|---|---|
-| GLiNER2 ONNX export doesn't work | Blocks v0.2 | Fallback to two-model approach (GLiNER2 + GLiREL) |
-| `ort` crate issues with GLiNER2 tensors | Delays v0.2 by 1 week | File upstream issue, implement workaround |
-| Extraction quality < 0.80 F1 | Weak value prop | Tune threshold, try different checkpoint, add GLiREL precision mode |
-| Nobody uses it after HN post | Wasted effort | Low cost — it's a useful internal tool regardless |
-| Users want features not on roadmap | Scope creep | v0.5 is explicitly user-guided. Listen and adapt. |
+| Graphiti adds local-first tier | High | CloakPipe privacy layer is the moat, not just cost |
+| Local model quality improves (GLiNER v3?) | Low — this is a win | Reduces LLM dependency, lowers cost further |
+| LLM providers raise prices | Medium | Ollama default is free. Entity cache amortizes cloud costs. |
+| Cross-domain quality doesn't reach 0.650 | Medium | Focus on cost story (6x cheaper) even at 0.550 |
+| CloakPipe integration complexity | Medium | CloakPipe already exists. Integration is wiring, not building. |

@@ -175,8 +175,9 @@ impl RelEngine {
 
     /// Extract relations between entities — fully local, no API calls.
     ///
-    /// When GLiREL is available, uses zero-shot neural scoring directly.
-    /// Otherwise falls back to heuristic keyword + proximity extraction (~0.51 F1).
+    /// When GLiREL is available, uses zero-shot neural scoring with schema-aware
+    /// direction resolution (domain-agnostic). Falls back to heuristic keyword
+    /// extraction when GLiREL is not loaded.
     ///
     /// Environment variables:
     /// - `CTXGRAPH_RELEX=1`: Enable experimental relex ONNX tier
@@ -186,13 +187,18 @@ impl RelEngine {
         entities: &[ExtractedEntity],
         schema: &ExtractionSchema,
     ) -> Result<Vec<ExtractedRelation>, RelError> {
-        // GLiREL: zero-shot relation extraction — bypass heuristics entirely.
-        if let Self::Glirel(engine) = self {
-            let relation_labels: Vec<&str> = schema.relation_labels();
-            return engine.extract(text, entities, &relation_labels, 0.5);
-        }
-
+        // Heuristic extraction first — fast, high-quality on tech text (0.748 F1).
         let mut relations = heuristic_relations(text, entities, schema);
+
+        // GLiREL fallback: when heuristics find no relations (cross-domain text),
+        // use zero-shot neural scoring with schema-aware direction resolution.
+        if relations.is_empty() {
+            if let Self::Glirel(engine) = self {
+                if let Ok(glirel_rels) = engine.extract_with_schema(text, entities, schema, 0.3) {
+                    relations = glirel_rels;
+                }
+            }
+        }
 
         // Relex ONNX model (experimental — opt-in via CTXGRAPH_RELEX=1)
         if std::env::var("CTXGRAPH_RELEX").is_ok() {

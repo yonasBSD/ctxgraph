@@ -1,6 +1,7 @@
 pub mod coref;
 pub mod deberta_clf;
 pub mod glirel;
+pub mod llm_extract;
 pub mod model_manager;
 pub mod ner;
 pub mod nli;

@@ -89,13 +89,116 @@ pub fn canonicalize_entity_name(name: &str) -> String {
 /// Canonicalize entity names in-place for a batch of extracted entities.
 pub fn canonicalize_entities(entities: &mut [ExtractedEntity]) {
     for entity in entities.iter_mut() {
+        // First: tech-specific canonicalization (strip versions, scopes, etc.)
+        let tech_canonical = canonicalize_tech_entity(&entity.text);
+        if tech_canonical != entity.text {
+            entity.span_end = entity.span_start + tech_canonical.len();
+            entity.text = tech_canonical;
+        }
+        // Then: general suffix stripping
         let canonical = canonicalize_entity_name(&entity.text);
         if canonical != entity.text {
-            // Adjust span_end to match the shorter canonical name
             entity.span_end = entity.span_start + canonical.len();
             entity.text = canonical;
         }
     }
+}
+
+/// Canonicalize tech entity names: strip version numbers, package scopes,
+/// and verbose qualifiers that prevent entity matching.
+///
+/// Examples:
+/// - "stripe-node@2.x" → "Stripe"
+/// - "@stripe/stripe-node@3.0" → "Stripe"
+/// - "Elasticsearch 8.x" → "Elasticsearch"
+/// - "Node 18" → "Node"
+/// - "Kubernetes v1.28" → "Kubernetes"
+/// - "Python 3.12" → "Python"
+fn canonicalize_tech_entity(name: &str) -> String {
+    let mut result = name.to_string();
+
+    // Strip npm-style package scopes: "@stripe/stripe-node" → "stripe-node"
+    if result.starts_with('@') {
+        if let Some(slash_pos) = result.find('/') {
+            result = result[slash_pos + 1..].to_string();
+        }
+    }
+
+    // Strip version suffixes: "stripe-node@2.x" → "stripe-node"
+    if let Some(at_pos) = result.find('@') {
+        let after = &result[at_pos + 1..];
+        // Only strip if what follows looks like a version (starts with digit or 'v')
+        if after.starts_with(|c: char| c.is_ascii_digit() || c == 'v') {
+            result = result[..at_pos].to_string();
+        }
+    }
+
+    // Strip trailing version numbers: "Elasticsearch 8.x" → "Elasticsearch"
+    // Match: " " followed by version-like pattern (digit, v+digit, or digit.x)
+    let version_re_patterns = [
+        // "Elasticsearch 8.x", "Node 18", "Python 3.12"
+        |s: &str| {
+            if let Some(space_pos) = s.rfind(' ') {
+                let after = &s[space_pos + 1..];
+                after.starts_with(|c: char| c.is_ascii_digit())
+                    || (after.starts_with('v')
+                        && after.len() > 1
+                        && after[1..].starts_with(|c: char| c.is_ascii_digit()))
+            } else {
+                false
+            }
+        },
+    ];
+
+    for check in &version_re_patterns {
+        if check(&result) {
+            if let Some(space_pos) = result.rfind(' ') {
+                result = result[..space_pos].to_string();
+            }
+        }
+    }
+
+    // Map common npm/pip package names to canonical product names
+    let package_to_canonical: &[(&str, &str)] = &[
+        ("stripe-node", "Stripe"),
+        ("stripe", "Stripe"),
+        ("express", "Express"),
+        ("fastify", "Fastify"),
+        ("next", "Next.js"),
+        ("react", "React"),
+        ("vue", "Vue"),
+        ("angular", "Angular"),
+        ("django", "Django"),
+        ("flask", "Flask"),
+        ("fastapi", "FastAPI"),
+        ("rails", "Rails"),
+        ("spring-boot", "Spring Boot"),
+        ("tokio", "tokio"),
+        ("actix-web", "Actix"),
+        ("deadpool-postgres", "deadpool-postgres"),
+        ("pg", "Postgres"),
+        ("mysql2", "MySQL"),
+        ("redis", "Redis"),
+        ("mongoose", "MongoDB"),
+    ];
+
+    let lower = result.to_lowercase();
+    for &(pkg, canonical) in package_to_canonical {
+        if lower == pkg {
+            return canonical.to_string();
+        }
+    }
+
+    // Strip " SDK", " CLI", " client" suffixes
+    let tech_suffixes = [" SDK", " sdk", " CLI", " cli", " client", " Client"];
+    for suffix in &tech_suffixes {
+        if result.ends_with(suffix) && result.len() > suffix.len() + 2 {
+            result = result[..result.len() - suffix.len()].to_string();
+            break;
+        }
+    }
+
+    result
 }
 
 /// Post-process entity type assignments from GLiNER using domain knowledge.

@@ -340,9 +340,7 @@ impl ToolContext {
         });
 
         if include_episodes {
-            let episodes = graph
-                .list_episodes(limit, 0)
-                .map_err(|e| e.to_string())?;
+            let episodes = graph.list_episodes(limit, 0).map_err(|e| e.to_string())?;
             let episodes_json: Vec<Value> = episodes
                 .into_iter()
                 .map(|e| serde_json::to_value(e).unwrap_or(Value::Null))

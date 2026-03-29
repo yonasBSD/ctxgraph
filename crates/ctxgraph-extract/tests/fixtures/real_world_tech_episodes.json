@@ -1,0 +1,127 @@
+[
+  {
+    "source": "git_commit",
+    "text": "fix: resolve race condition in connection pool when Postgres max_connections exceeded under load. Switched from tokio::sync::Semaphore to deadpool-postgres with max_size=20. Closes #847",
+    "expected_entities": [
+      {"name": "connection pool", "entity_type": "Component"},
+      {"name": "Postgres", "entity_type": "Database"},
+      {"name": "tokio", "entity_type": "Component"},
+      {"name": "deadpool-postgres", "entity_type": "Component"}
+    ],
+    "expected_relations": [
+      {"head": "deadpool-postgres", "relation": "replaced", "tail": "tokio"},
+      {"head": "deadpool-postgres", "relation": "fixed", "tail": "connection pool"}
+    ]
+  },
+  {
+    "source": "sentry_error",
+    "text": "ECONNREFUSED 127.0.0.1:6379 - Redis connection failed in SessionManager. 47 occurrences in last hour. First seen after deploy v2.4.1. Affected service: auth-gateway. Stack: SessionManager.getSession() -> RedisClient.connect() -> net.createConnection()",
+    "expected_entities": [
+      {"name": "Redis", "entity_type": "Database"},
+      {"name": "SessionManager", "entity_type": "Component"},
+      {"name": "auth-gateway", "entity_type": "Service"},
+      {"name": "v2.4.1", "entity_type": "Component"}
+    ],
+    "expected_relations": [
+      {"head": "SessionManager", "relation": "depends_on", "tail": "Redis"},
+      {"head": "auth-gateway", "relation": "depends_on", "tail": "SessionManager"},
+      {"head": "v2.4.1", "relation": "caused", "tail": "Redis"}
+    ]
+  },
+  {
+    "source": "github_pr",
+    "text": "## PR #342: Migrate payment processing from Stripe SDK v2 to v3\n\nReplaces the deprecated stripe-node@2.x with @stripe/stripe-node@3.0. Key changes:\n- PaymentService now uses the new PaymentIntents API instead of Charges\n- Added idempotency keys for retry safety\n- Webhook verification uses the new signing secret format\n\nBreaking: requires Node 18+ (dropped Node 16 support)\nReviewer: @sarah",
+    "expected_entities": [
+      {"name": "Stripe", "entity_type": "Service"},
+      {"name": "PaymentService", "entity_type": "Component"},
+      {"name": "PaymentIntents API", "entity_type": "Component"},
+      {"name": "Node", "entity_type": "Language"},
+      {"name": "sarah", "entity_type": "Person"}
+    ],
+    "expected_relations": [
+      {"head": "PaymentService", "relation": "depends_on", "tail": "Stripe"},
+      {"head": "PaymentIntents API", "relation": "replaced", "tail": "Stripe"},
+      {"head": "Node", "relation": "constrained_by", "tail": "Node"}
+    ]
+  },
+  {
+    "source": "slack_message",
+    "text": "hey team, heads up - I just rolled back the Elasticsearch upgrade. ES 8.x was causing OOM kills on the search-indexer pods. Going back to 7.17 for now until we can get the JVM heap settings right. @devops can you check the k8s memory limits? the dashboard in Grafana is showing 95% memory usage on the search cluster",
+    "expected_entities": [
+      {"name": "Elasticsearch", "entity_type": "Database"},
+      {"name": "search-indexer", "entity_type": "Component"},
+      {"name": "Grafana", "entity_type": "Component"},
+      {"name": "k8s", "entity_type": "Infrastructure"}
+    ],
+    "expected_relations": [
+      {"head": "Elasticsearch", "relation": "caused", "tail": "search-indexer"},
+      {"head": "search-indexer", "relation": "depends_on", "tail": "Elasticsearch"},
+      {"head": "Grafana", "relation": "depends_on", "tail": "Elasticsearch"}
+    ]
+  },
+  {
+    "source": "adr",
+    "text": "ADR-015: Use Apache Kafka for event streaming between microservices. We evaluated RabbitMQ, AWS SQS, and Kafka. RabbitMQ was rejected due to lack of replay capability. SQS was rejected because we need cross-region replication which SQS doesn't support natively. Kafka was chosen for its log-based architecture, consumer groups, and exactly-once semantics via the transactions API. Trade-off: operational complexity (ZooKeeper dependency until KRaft migration).",
+    "expected_entities": [
+      {"name": "Apache Kafka", "entity_type": "Component"},
+      {"name": "RabbitMQ", "entity_type": "Component"},
+      {"name": "AWS SQS", "entity_type": "Service"},
+      {"name": "ZooKeeper", "entity_type": "Component"}
+    ],
+    "expected_relations": [
+      {"head": "Apache Kafka", "relation": "replaced", "tail": "RabbitMQ"},
+      {"head": "Apache Kafka", "relation": "replaced", "tail": "AWS SQS"},
+      {"head": "Apache Kafka", "relation": "depends_on", "tail": "ZooKeeper"}
+    ]
+  },
+  {
+    "source": "incident_report",
+    "text": "Incident INC-2024-089: Production outage on checkout-service lasting 23 minutes. Root cause: a misconfigured Envoy sidecar was routing traffic to a stale backend after the blue-green deploy of order-service v3.1.0. Mitigation: manual DNS failover to the canary deployment. Prevention: adding health check probes to the Envoy config and switching from DNS-based to IP-based service discovery via Consul.",
+    "expected_entities": [
+      {"name": "checkout-service", "entity_type": "Service"},
+      {"name": "Envoy", "entity_type": "Component"},
+      {"name": "order-service", "entity_type": "Service"},
+      {"name": "Consul", "entity_type": "Component"}
+    ],
+    "expected_relations": [
+      {"head": "Envoy", "relation": "caused", "tail": "checkout-service"},
+      {"head": "order-service", "relation": "depends_on", "tail": "Envoy"},
+      {"head": "Consul", "relation": "introduced", "tail": "Envoy"}
+    ]
+  },
+  {
+    "source": "standup_notes",
+    "text": "standup: spent yesterday debugging the flaky integration tests. turns out the test database was sharing a connection pool with the staging env. moved tests to a dedicated Postgres instance on Docker Compose. also updated the CI pipeline — replaced CircleCI with GitHub Actions because the free tier gives us 3x more build minutes. @mike is reviewing the Terraform changes for the new staging VPC.",
+    "expected_entities": [
+      {"name": "Postgres", "entity_type": "Database"},
+      {"name": "Docker Compose", "entity_type": "Infrastructure"},
+      {"name": "CircleCI", "entity_type": "Service"},
+      {"name": "GitHub Actions", "entity_type": "Service"},
+      {"name": "Terraform", "entity_type": "Component"},
+      {"name": "mike", "entity_type": "Person"}
+    ],
+    "expected_relations": [
+      {"head": "GitHub Actions", "relation": "replaced", "tail": "CircleCI"},
+      {"head": "Postgres", "relation": "depends_on", "tail": "Docker Compose"},
+      {"head": "mike", "relation": "introduced", "tail": "Terraform"}
+    ]
+  },
+  {
+    "source": "tech_blog",
+    "text": "We migrated our monolith to microservices using the strangler fig pattern over 18 months. The API gateway (Kong) routes traffic based on feature flags managed by LaunchDarkly. Legacy endpoints still hit the Rails monolith, while new features go directly to Go services behind gRPC. The biggest win was moving the recommendation engine to a dedicated Python service using FastAPI and Redis for caching — cold start went from 12s to 200ms.",
+    "expected_entities": [
+      {"name": "Kong", "entity_type": "Component"},
+      {"name": "LaunchDarkly", "entity_type": "Service"},
+      {"name": "Rails", "entity_type": "Language"},
+      {"name": "Go", "entity_type": "Language"},
+      {"name": "FastAPI", "entity_type": "Component"},
+      {"name": "Redis", "entity_type": "Database"},
+      {"name": "gRPC", "entity_type": "Component"}
+    ],
+    "expected_relations": [
+      {"head": "Kong", "relation": "depends_on", "tail": "LaunchDarkly"},
+      {"head": "Go", "relation": "replaced", "tail": "Rails"},
+      {"head": "FastAPI", "relation": "depends_on", "tail": "Redis"}
+    ]
+  }
+]

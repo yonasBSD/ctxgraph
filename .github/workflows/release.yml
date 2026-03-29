@@ -80,6 +80,8 @@ jobs:
   update-homebrew:
     needs: release
     runs-on: ubuntu-latest
+    # Don't fail the release if the tap update fails (token permissions, etc.)
+    continue-on-error: true
 
     steps:
       - name: Update Homebrew formula

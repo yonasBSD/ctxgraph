@@ -141,7 +141,10 @@ impl Default for ExtractionSchema {
         entity_types.insert("Service".into(), "service, platform, or API".into());
         entity_types.insert("Language".into(), "programming language".into());
         entity_types.insert("Database".into(), "database or data store".into());
-        entity_types.insert("Infrastructure".into(), "server, hardware, or cloud platform".into());
+        entity_types.insert(
+            "Infrastructure".into(),
+            "server, hardware, or cloud platform".into(),
+        );
         entity_types.insert("Decision".into(), "decision or policy".into());
         entity_types.insert("Constraint".into(), "constraint or requirement".into());
         entity_types.insert("Metric".into(), "metric or measurement".into());

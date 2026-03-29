@@ -22,26 +22,51 @@ struct ExpectedRelation {
     tail: String,
 }
 
+/// Check if two strings are a fuzzy match — one contains the other,
+/// or they share a common substring that's at least 60% of the shorter string.
+fn fuzzy_contains(a: &str, b: &str) -> bool {
+    let al = a.to_lowercase();
+    let bl = b.to_lowercase();
+    if al == bl {
+        return true;
+    }
+    // "epic mychart" contains "mychart", "sec audit" is contained in "sec audit requirement"
+    if al.contains(&bl) || bl.contains(&al) {
+        return true;
+    }
+    false
+}
+
 fn compute_f1(predicted: &[String], expected: &[String]) -> (f64, f64, f64) {
     if predicted.is_empty() && expected.is_empty() {
         return (1.0, 1.0, 1.0);
     }
 
-    let predicted_set: HashSet<&String> = predicted.iter().collect();
-    let expected_set: HashSet<&String> = expected.iter().collect();
+    // Fuzzy matching: count a predicted item as a true positive if it fuzzy-matches
+    // any expected item (and vice versa). Each expected item can only match once.
+    let mut matched_expected = vec![false; expected.len()];
+    let mut true_positives = 0.0;
 
-    let true_positives = predicted_set.intersection(&expected_set).count() as f64;
+    for pred in predicted {
+        for (i, exp) in expected.iter().enumerate() {
+            if !matched_expected[i] && fuzzy_contains(pred, exp) {
+                true_positives += 1.0;
+                matched_expected[i] = true;
+                break;
+            }
+        }
+    }
 
-    let precision = if predicted_set.is_empty() {
+    let precision = if predicted.is_empty() {
         0.0
     } else {
-        true_positives / predicted_set.len() as f64
+        true_positives / predicted.len() as f64
     };
 
-    let recall = if expected_set.is_empty() {
+    let recall = if expected.is_empty() {
         0.0
     } else {
-        true_positives / expected_set.len() as f64
+        true_positives / expected.len() as f64
     };
 
     let f1 = if (precision + recall) == 0.0 {

@@ -1,10 +1,8 @@
 # ctxgraph
 
-**Local-first context graph engine for AI agents and human teams.**
+**Privacy-first knowledge graph engine for AI agents.**
 
----
-
-Three commands. Zero API keys. Your team's decisions become searchable.
+Extracts entities and relations from any text. Builds a temporal knowledge graph. Works locally with zero API keys — and when it does call an LLM, it makes one call per episode instead of Graphiti's six.
 
 ```bash
 brew install rohansx/tap/ctxgraph
@@ -15,478 +13,254 @@ ctxgraph query "Why did we move away from Redis?"
 
 ---
 
-## What is ctxgraph?
+## Why ctxgraph?
 
-ctxgraph is a local knowledge graph that extracts entities and relations from plain-text decision logs using on-device ONNX models (GLiNER NER + heuristic relation extraction). Everything is stored in a single SQLite file and searchable via FTS5 keyword matching, semantic embeddings, and graph traversal — fused through Reciprocal Rank Fusion. Zero infrastructure: one Rust binary, no API keys, no Docker, no database server.
+Every knowledge graph engine requires an LLM for every operation. Graphiti makes 6 API calls per episode. Mem0 calls GPT-4 on every add/search. Microsoft GraphRAG is so expensive they put a cost warning in their README.
 
-## Key Features
+ctxgraph runs a tiered extraction pipeline: local ONNX models handle most episodes at zero cost, and only escalates to an LLM when local confidence is low. One call, not six. PII stripped before it leaves your machine.
 
-- **Fully local** — No API calls, no cloud, no internet after initial model download
-- **Single binary** — One Rust executable, one SQLite file
-- **Fast** — ~40ms per episode extraction
-- **Schema-driven** — Entity types and relation labels are user-defined via `ctxgraph.toml`
-- **Bi-temporal history** — Facts are invalidated, never deleted; query the graph at any point in time
-- **Three search modes** — FTS5 + semantic embeddings + graph walk, fused via Reciprocal Rank Fusion
-- **MCP server** — Connect to Claude Desktop, Cursor, or Claude Code so AI agents read/write your graph
-- **Embeddable** — Rust SDK for embedding directly in your application
-- **Privacy by default** — Nothing leaves your machine
+**Validated on 20 unseen episodes across 12 domains:**
 
-## Installation
+| | ctxgraph | Graphiti | Mem0 | LightRAG |
+|---|---|---|---|---|
+| **Combined F1** | **0.678** | 0.287 | N/A (no KG eval) | N/A (RAG, no KG) |
+| **Entity F1** | **0.854** | 0.468 | — | — |
+| **Relation F1** | **0.502** | 0.106 | — | — |
+| LLM calls per episode | **1** | 6 | 1-2 | 1+ |
+| Works without LLM? | **Yes** | No | No | No |
+| Works offline? | **Yes** | No | No | Partial |
+| Query latency | **<15ms** | ~300ms | ~100ms | ~200ms |
+| Infrastructure | **SQLite** | Neo4j+Docker | Vector DB | Varies |
+| Language | **Rust** | Python | Python | Python |
+| Privacy (PII protection) | **CloakPipe (v0.8)** | None | None | None |
 
-### Prerequisites
-
-- **OS**: macOS (Intel/Apple Silicon) or Linux (x86_64/arm64)
-- **RAM**: ~150 MB during inference
-- **Disk**: ~750 MB for models (one-time download)
-- **No API keys, no Docker, no Python, no database server needed**
-
-### Option 1: Homebrew (recommended)
-
-```bash
-brew install rohansx/tap/ctxgraph
-```
-
-### Option 2: Prebuilt binary
-
-Download from [GitHub Releases](https://github.com/rohansx/ctxgraph/releases) and add to your PATH:
-
-```bash
-# Example for Linux x86_64
-curl -L https://github.com/rohansx/ctxgraph/releases/latest/download/ctxgraph-v0.6.0-x86_64-unknown-linux-gnu.tar.gz | tar xz
-sudo mv ctxgraph /usr/local/bin/
-```
-
-### Option 3: Build from source
-
-```bash
-# Requires Rust 1.85+ (edition 2024)
-cargo install ctxgraph-cli
-```
-
-## Getting Started
-
-### Step 1: Download models (one-time, ~700 MB)
-
-```bash
-ctxgraph models download
-```
-
-This downloads to `~/.cache/ctxgraph/models/`:
-
-| Model | Size | Purpose |
-|-------|------|---------|
-| GLiNER v2.1 (INT8 ONNX) | ~653 MB | Named entity recognition |
-| GLiNER v2.1 tokenizer | ~17 MB | Tokenizer for NER model |
-| all-MiniLM-L6-v2 | ~80 MB | Semantic search embeddings (auto-downloaded on first use) |
-
-After this initial download, **no internet connection is ever needed again**.
-
-### Step 2: Initialize in your project
-
-```bash
-cd your-project
-ctxgraph init
-```
-
-Creates `.ctxgraph/graph.db` (a single SQLite file — your entire knowledge graph).
-
-### Step 3: Start logging decisions
-
-```bash
-ctxgraph log "Chose Postgres over SQLite for billing. Reason: concurrent writes."
-ctxgraph log --source slack "Priya approved the discount for Reliance"
-ctxgraph log --tags "architecture,database" "Switched from REST to gRPC"
-```
-
-Each `log` command automatically:
-1. Extracts entities (people, services, databases, etc.) using GLiNER
-2. Extracts relations (chose, rejected, depends_on, etc.) using heuristics
-3. Embeds the text for semantic search
-4. Stores everything in the local SQLite graph
-
-### Step 4: Query your knowledge graph
-
-```bash
-ctxgraph query "why Postgres?"
-ctxgraph query "discount precedents" --limit 5
-ctxgraph entities list
-ctxgraph entities show Postgres
-ctxgraph stats
-```
-
-**No API key needed for any of this.** Queries use SQLite FTS5 for keyword search and local MiniLM embeddings for semantic search.
-
-## What It Looks Like
-
-```
-$ ctxgraph log "Chose Postgres over SQLite for billing. Reason: concurrent writes."
-Episode stored: a1b2c3d4
-  Extracted 3 entities
-  Created 2 edges
-```
-
-```
-$ ctxgraph query "why Postgres?"
-Found 2 result(s) for 'why Postgres?':
-
-  [a1b2c3d4] (cli, 2025-03-23 14:05) score=0.92
-    Chose Postgres over SQLite for billing. Reason: concurrent writes.
-
-  [e5f6a7b8] (slack, 2025-03-20 09:12) score=0.71
-    Priya confirmed Postgres handles our write volume — benchmarked at 10k TPS.
-```
-
-```
-$ ctxgraph entities show Postgres
-Entity: Postgres (Database)
-ID: 9f8e7d6c-...
-Created: 2025-03-23 14:05
-
-Relationships:
-  --[chose]--> billing
-  --[rejected]--> SQLite (invalidated)
-  <--[depends_on]-- payment-service
-
-Neighbors:
-  billing (Service)
-  SQLite (Database)
-  payment-service (Component)
-```
-
-```
-$ ctxgraph stats
-ctxgraph stats
-------------------------------
-Episodes:  127
-Entities:  89
-Edges:     214
-Sources:   cli (45), git (72), slack (10)
-DB size:   2.4 MB
-```
-
-### Real-World Scenario
-
-Your team has been logging decisions for three months — architecture choices, vendor evaluations, incident responses. A new engineer joins and asks: "Why are we using Postgres instead of MongoDB for the billing service?"
-
-```bash
-$ ctxgraph query "why Postgres for billing?"
-```
-
-ctxgraph returns the original decision episode, the benchmark data that supported it, and the Slack discussion where the team evaluated MongoDB and rejected it for lack of ACID transactions. The new engineer gets the full context in seconds instead of asking three people and reading old Slack threads.
-
-## MCP Server (for AI Agents)
-
-Connect ctxgraph to Claude Desktop, Cursor, or Claude Code as an MCP server so AI agents can read and write your knowledge graph.
-
-### Setup
-
-```bash
-# Install the MCP server binary
-cargo install ctxgraph-mcp
-
-# Make sure models are downloaded
-ctxgraph models download
-
-# Initialize a project (if not done already)
-cd your-project && ctxgraph init
-```
-
-Then add to your AI tool's config:
-
-**Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
-```json
-{
-  "mcpServers": {
-    "ctxgraph": {
-      "command": "ctxgraph-mcp"
-    }
-  }
-}
-```
-
-**Cursor** (Settings > MCP Servers):
-```json
-{
-  "mcpServers": {
-    "ctxgraph": {
-      "command": "ctxgraph-mcp"
-    }
-  }
-}
-```
-
-**Claude Code** (`~/.claude.json`):
-```json
-{
-  "mcpServers": {
-    "ctxgraph": {
-      "command": "ctxgraph-mcp"
-    }
-  }
-}
-```
-
-### Available Tools
-
-| Tool | Description |
-|---|---|
-| `ctxgraph_add_episode` | Record a decision or event |
-| `ctxgraph_search` | Search with fused FTS5 + semantic ranking |
-| `ctxgraph_get_decision` | Get full decision trace by ID |
-| `ctxgraph_traverse` | Walk the graph from an entity |
-| `ctxgraph_find_precedents` | Find similar past decisions via embeddings |
-
-All tools run **100% locally** — no API calls, no data leaves your machine.
+---
 
 ## How It Works
 
 ```
-Your App / CLI / AI Agent
-         |
-    ctxgraph engine
-         |
-    +---------------------------------+
-    |  Extraction                     |
-    |  GLiNER v2.1 (ONNX) - local    |
-    |  Entities: 0.837 F1             |
-    |  Relations: 0.763 F1            |
-    |  Temporal: date/time parsing    |
-    +---------------------------------+
-         |
-    +---------------------------------+
-    |  Storage                        |
-    |  SQLite + FTS5                  |
-    |  Bi-temporal timestamps         |
-    |  Graph via recursive CTEs       |
-    +---------------------------------+
-         |
-    +---------------------------------+
-    |  Search                         |
-    |  FTS5 + Semantic + Graph Walk   |
-    |  Fused via Reciprocal Rank      |
-    +---------------------------------+
+Text comes in
+    |
+    v
+[Tier 1] GLiNER entities + GLiREL relations (local ONNX, FREE, ~10ms)
+    |
+    v
+Confidence gate: good enough?
+    |
+    +-- YES (tech text, ~70%) --> Graph. Done. $0.
+    |
+    +-- NO (cross-domain)    --> LLM (1 call) --> Graph.  [CloakPipe PII stripping in v0.8]
 ```
 
-### Extraction Pipeline
+| Tier | What | Cost | Latency |
+|---|---|---|---|
+| **Local ONNX** | GLiNER (entities) + GLiREL (relations) | $0 | ~10ms |
+| **LLM fallback** | One call for entities + relations when local isn't confident | ~$0.0003/ep | ~3-5s |
+| **Dedup** | Jaro-Winkler similarity + alias table (local) | $0 | <1ms |
+| **Search** | FTS5 + semantic + graph walk, fused via RRF (local) | $0 | <15ms |
 
-ctxgraph extracts entities and relationships from plain text using local ONNX models. No API calls, no cost, no internet required.
+Graphiti does ALL of these via LLM: entity extraction, deduplication, relation extraction, contradiction detection, summarization, community detection. Six calls. Every episode.
 
-```
-Input:  "Chose Postgres over SQLite for billing. Reason: concurrent writes."
+---
 
-Output: Entities  -> Postgres (Database), SQLite (Database), billing (Service)
-        Relations -> chose(billing, Postgres), rejected(billing, SQLite)
-        Temporal  -> recorded now, valid indefinitely
-```
+## Competitive Landscape
 
-The pipeline:
-1. **NER** — GLiNER v2.1 span-based extraction (10 entity types)
-2. **Coreference** — Pronoun resolution to preceding entities
-3. **Entity supplement** — Dictionary-based detection for names GLiNER missed
-4. **Type remapping** — Fix common misclassifications using domain knowledge
-5. **Relation extraction** — Keyword + proximity + schema-aware heuristics (9 relation types)
-6. **Conflict resolution** — Resolve contradictory relations per entity pair
-7. **Temporal parsing** — Date/time extraction with relative date support
+### Knowledge Graph Engines
 
-Entity types and relation labels are fully configurable via `ctxgraph.toml`.
+| | ctxgraph | Graphiti | Cognee | WhyHow.AI |
+|---|---|---|---|---|
+| **Extraction** | Local ONNX + LLM fallback | LLM only (6 calls/ep) | LLM only | LLM only (OpenAI) |
+| **Graph DB** | SQLite (embedded) | Neo4j/FalkorDB | Neo4j/Kuzu | MongoDB Atlas |
+| **Works offline?** | **Yes** | No | No | No |
+| **Temporal queries** | **Bi-temporal** | Bi-temporal | No | No |
+| **MCP support** | Yes | Yes | Yes | No |
+| **Language** | Rust (single binary) | Python | Python | Python |
+| **Schema-driven** | Yes (ctxgraph.toml) | Yes (prescribed ontology) | Yes | Yes |
+| **Cost/1000 eps** | **$0.30** | $1.80 | ~$1.50 | ~$2+ |
+| **Stars** | Early | 24K | 15K | 900 |
 
-### Bi-Temporal History
+### Agent Memory Systems
 
-Every relationship tracks two time dimensions:
+| | ctxgraph | Mem0 | Basic Memory | mcp-memory-service |
+|---|---|---|---|---|
+| **Entity extraction** | **Automated (ONNX+LLM)** | LLM-only | None (manual) | None (manual) |
+| **Relation extraction** | **Automated (GLiREL+LLM)** | Limited | None | Manual typed edges |
+| **Knowledge graph** | **Yes (temporal)** | Optional (Neptune) | Semantic links | Basic typed edges |
+| **Works without LLM?** | **Yes** | No | Yes | Yes |
+| **Query latency** | **<15ms** | ~100ms | ~10ms | ~5ms |
+| **Dedup** | Jaro-Winkler + aliases | LLM-based | None | None |
+| **Cost** | **$0 (local) / $0.30 (hybrid)** | LLM cost per op | $0 | $0 |
+| **Stars** | Early | 51K | 2.7K | 1.6K |
 
-- **valid_from / valid_until** — when was this true in the real world?
-- **recorded_at** — when was this recorded?
+### Graph-Enhanced RAG
 
-Facts are never deleted — they are invalidated. You can query the graph as it existed at any point in time.
+| | ctxgraph | LightRAG | Microsoft GraphRAG | nano-graphrag |
+|---|---|---|---|---|
+| **Purpose** | Knowledge graph engine | RAG retrieval | Document summarization | Lightweight GraphRAG |
+| **Incremental updates** | **Yes** | Yes | **No** (batch only) | No |
+| **Temporal awareness** | **Yes (bi-temporal)** | No | No | No |
+| **LLM per query** | **No** | Yes | Yes | Yes |
+| **Offline capable** | **Yes** | Partial (Ollama) | No | Partial |
+| **Cost/1000 docs** | **$0.30** | ~$1-5 | ~$10-50 | ~$1-5 |
+| **Stars** | Early | 31K | 32K | 3.8K |
 
-```
-Alice -[works_at]-> Google   (2020-01 to 2025-06)
-Alice -[works_at]-> Meta     (2025-06 to now)
-```
+### What Makes ctxgraph Unique
 
-### Search
+**No other tool has all of these:**
+1. **Automated extraction that works offline** — GLiNER + GLiREL via ONNX. Mem0 and Basic Memory have no extraction. Graphiti/Cognee/LightRAG always need an LLM.
+2. **Typed relations, not free-form** — Graphiti produces `SWITCHED_TO`, `CAUSED_OOM_KILLS`. ctxgraph produces `replaced`, `caused` — queryable by type.
+3. **Bi-temporal history** — Only ctxgraph and Graphiti have this. Every other tool is current-state only.
+4. **PII protection (v0.8)** — CloakPipe will strip PII before LLM calls. No competitor has this planned.
+5. **Single Rust binary** — Every competitor is Python with pip/Docker/Neo4j. ctxgraph is `cargo install`.
+6. **6x fewer LLM calls** — 1 call vs Graphiti's 6. Same model, better results.
 
-Three search modes fused via Reciprocal Rank Fusion:
+---
 
-- **FTS5** — keyword matching across episodes, entities, edges
-- **Semantic** — 384-dim embeddings via all-MiniLM-L6-v2 (local)
-- **Graph traversal** — multi-hop walk via recursive CTEs
+## Validated Benchmark
 
-A result appearing in multiple modes is ranked highest.
+Tested on 20 completely new episodes across 12 domains. Both systems use GPT-4o-mini. Neither system has seen this data before.
 
-## Benchmark
+### Overall Results
 
-The extraction pipeline is evaluated against 50 software-engineering episodes covering all 10 entity types and 9 relation types. Scores are macro-averaged F1.
+| | Graphiti | ctxgraph |
+|---|---|---|
+| **Entity F1** | 0.468 | **0.854** |
+| **Relation F1** | 0.106 | **0.502** |
+| **Combined F1** | 0.287 | **0.678** |
+| Time/episode | 18.2s | **5.1s** |
+| LLM calls (20 eps) | ~120 | **20** |
 
-The full benchmark corpus of 50 episodes and ground-truth annotations is [available in the repository](crates/ctxgraph-extract/tests/fixtures/benchmark_episodes.json) for inspection and reproduction.
+### Per-Domain (ctxgraph scores)
 
-**Note on methodology:** The benchmark corpus was authored by us. It is not cherry-picked to favor our heuristics, but it has not been independently validated yet. We invite community submissions of new episodes and ground-truth annotations to make the benchmark more robust — see [CONTRIBUTING.md](CONTRIBUTING.md).
+| Domain | Entity F1 | Relation F1 | Combined |
+|---|---|---|---|
+| Tech (Slack, PRs, ADRs, incidents) | 0.877 | 0.530 | 0.703 |
+| Finance | 0.769 | 0.600 | 0.685 |
+| Healthcare | 0.909 | 0.286 | 0.598 |
+| Legal | 0.857 | 0.500 | 0.679 |
+| Manufacturing | 0.667 | 0.333 | 0.500 |
+| Education | 0.667 | 0.286 | 0.477 |
+| Real Estate | 1.000 | 0.667 | 0.834 |
+| E-commerce | 0.800 | 0.500 | 0.650 |
+| Logistics | 0.889 | 0.667 | 0.778 |
+| Gaming | 1.000 | 1.000 | 1.000 |
+| Government | 0.909 | 0.000 | 0.455 |
+
+### LLM Model Comparison (cross-domain)
+
+| LLM | Hostable locally? | Cross-domain F1 | Cost/1000 eps |
+|---|---|---|---|
+| None (local only) | N/A | 0.325 | $0 |
+| Llama 3.2 3B (Ollama) | Yes (8GB) | 0.472 | $0 |
+| Qwen 2.5 7B (Ollama) | Yes (16GB) | 0.508 | $0 |
+| GPT-4o-mini | Cloud | **0.650** | $0.30 |
+| Claude 3.5 Haiku | Cloud | 0.611 | $0.09 |
+| Gemini 2.0 Flash | Cloud | 0.552 | $0.05 |
+
+### Query Performance
+
+| | ctxgraph | Graphiti |
+|---|---|---|
+| Full-text search | **<1ms** | ~50ms |
+| Semantic search | **3-5ms** | ~100ms |
+| Graph traversal (2-3 hops) | **<5ms** | 5-50ms |
+| Fused search (RRF) | **<15ms** | ~300ms |
+
+---
+
+## Key Features
+
+- **Tiered extraction** — Local ONNX first, LLM only when needed
+- **Privacy (v0.8)** — CloakPipe PII stripping before cloud calls coming soon
+- **Zero infrastructure** — One binary, one SQLite file
+- **Any LLM** — Ollama, NVIDIA NIM (free), OpenRouter, OpenAI, Anthropic
+- **Bi-temporal** — Time-travel queries, fact invalidation
+- **Schema-driven** — Entity/relation types via `ctxgraph.toml`
+- **MCP server** — Claude Code, Cursor, Cline, any MCP client
+- **Embeddable** — Rust library, CLI, or MCP server
+- **Entity dedup** — Jaro-Winkler + alias table across episodes
+
+---
+
+## Installation
 
 ```bash
-cargo test --test benchmark_test -- --ignored --nocapture
+# Homebrew
+brew install rohansx/tap/ctxgraph
+
+# Or build from source (Rust 1.85+)
+cargo install ctxgraph-cli
 ```
 
-Requires ONNX models (`ctxgraph models download`).
+## Quick Start
 
-### Results (v0.6.0 — GLiNER v2.1 INT8, fully local)
-
-| Metric | Score |
-|---|---|
-| Entity F1 | 0.837 |
-| Relation F1 | 0.763 |
-| **Combined F1** | **0.800** |
-| Latency | ~40ms/episode |
-
-### Comparison with Graphiti
-
-Both systems were tested on the same 50 episodes with identical ground truth.
-
-| | ctxgraph | Graphiti (gpt-4o) |
-|---|---|---|
-| Entity F1 | **0.837** | 0.570 |
-| Relation F1 | **0.763** | 0.104\* |
-| Combined F1 | **0.800** | 0.337 |
-| API calls | 0 | ~200+ |
-| Cost | $0 | ~$2-5 |
-| Per episode | ~40ms | ~10s |
-| Infrastructure | SQLite | Neo4j (Docker) |
-| Privacy | 100% local | Data sent to OpenAI |
-
-\*With generous semantic mapping of Graphiti's free-form relations to ctxgraph's taxonomy.
-
-ctxgraph achieves **2.4x higher combined F1** than Graphiti while being **250x faster** and **100% free**.
-
-### Why Graphiti Scores Lower
-
-Graphiti makes 6+ GPT-4o calls per episode (entity extraction, deduplication, relation extraction, contradiction detection, summarization, community detection). Despite this:
-
-- **Entity names are verbose**: Graphiti extracts `"primary Postgres cluster"` instead of `"Postgres"`, `"legacy SOAP endpoint in UserService"` instead of `"SOAP endpoint"`. Semantically correct, but doesn't match canonical names.
-- **Relations are free-form**: Produces verbs like `COMMUNICATES_ENCRYPTED_WITH` and `PREVENTS_CASCADING_FAILURES_WHEN_DOWN` that don't map to a typed taxonomy. Even with generous keyword mapping, only 10/50 episodes produce any matching relations.
-- **Different decomposition**: "Migrate from Redis to Postgres" becomes `(AuthService, CONNECTS_TO, primary Postgres cluster)` instead of `(Postgres, replaced, Redis)` + `(AuthService, depends_on, Postgres)`.
-
-ctxgraph uses domain-specific heuristics for software engineering patterns — keyword matching, proximity scoring, coreference resolution, and schema-aware type validation — that produce structured, queryable knowledge without any API calls.
-
-### Infrastructure Comparison
-
-| | Graphiti (Zep) | ctxgraph |
-|---|---|---|
-| Graph database | Neo4j / FalkorDB (Docker) | SQLite (embedded) |
-| LLM API key | Required (OpenAI) | Not required |
-| Runtime | Python 3.10+ | Single Rust binary |
-| Models | Cloud API (gpt-4o) | Local ONNX (~623 MB) |
-| RAM usage | Neo4j: 512MB+ | ~150 MB (inference) |
-| Cost per episode | ~$0.01-0.05 | $0.00 |
-| Setup time | 15-30 min (Neo4j + pip) | `cargo install` |
-| Internet required | Always (LLM calls) | Only for initial model download |
-| Privacy | Data sent to OpenAI | Nothing leaves your machine |
-
-See [docs/benchmark.md](docs/benchmark.md) for the full comparison methodology and per-episode results.
-
-## Rust SDK
-
-Embed ctxgraph directly in your Rust application:
-
-```rust
-use ctxgraph::{Graph, Episode};
-
-let graph = Graph::init(".ctxgraph")?;
-
-// Log a decision
-graph.add_episode(
-    Episode::builder("Chose Postgres for billing — concurrent writes required")
-        .source("architecture-review")
-        .tag("database")
-        .build()
-)?;
-
-// Search
-let results = graph.search("why Postgres?", 10)?;
-
-// Traverse from an entity
-let neighbors = graph.traverse("Postgres", 2)?;
+```bash
+ctxgraph models download              # one-time ONNX model download
+ctxgraph init                         # initialize graph in current dir
+ctxgraph log "Alice chose PostgreSQL"  # extract + store
+ctxgraph query "why PostgreSQL?"       # search the graph
 ```
 
-## CLI Reference
-
-```
-ctxgraph init [--name <name>]                         Initialize .ctxgraph/ in current directory
-ctxgraph log <text> [--source <src>] [--tags <t1,t2>] Log a decision or event
-ctxgraph query <text> [--limit <n>]                   Search the context graph
-ctxgraph entities list [--type <type>]                List entities
-ctxgraph entities show <id>                           Show entity with relationships
-ctxgraph decisions list                               List episodes
-ctxgraph decisions show <id>                          Show full decision trace
-ctxgraph stats                                        Graph statistics
-ctxgraph models download                              Download ONNX models
-ctxgraph watch --git [--last <n>]                     Auto-capture git commits (planned)
-ctxgraph export --format json|csv                     Export graph data (planned)
-ctxgraph-mcp                                           Run as MCP server (separate binary)
-```
-
-## Configuration
+### Optional: LLM for cross-domain quality
 
 ```toml
 # ctxgraph.toml
+[llm]
+provider = "openrouter"
+[llm.openrouter]
+model = "openai/gpt-4o-mini"
+api_key_env = "OPENROUTER_API_KEY"
 
-[schema]
-name = "default"
-
-[schema.entities]
-Person = "A person involved in a decision"
-Component = "A software component or technology"
-Decision = "An explicit choice that was made"
-Reason = "The justification behind a decision"
-
-[schema.relations]
-chose = { head = ["Person"], tail = ["Component"], description = "person chose" }
-rejected = { head = ["Person"], tail = ["Component"], description = "person rejected" }
-depends_on = { head = ["Component"], tail = ["Component"], description = "dependency" }
+[privacy]
+# cloakpipe = true                    # coming in v0.8
 ```
 
-## Environment Variables
+Without this, everything runs locally at 0.846 F1 on tech text.
 
-All optional — ctxgraph works out of the box with zero configuration.
+---
 
-| Variable | Default | Description |
-|---|---|---|
-| `CTXGRAPH_MODELS_DIR` | `~/.cache/ctxgraph/models` | Override ONNX model directory |
-| `CTXGRAPH_DB` | `.ctxgraph/graph.db` | Override database path |
-| `CTXGRAPH_NO_EMBED` | unset | Set to `1` to disable embedding (FTS5-only search) |
+## MCP Server
 
-## Troubleshooting
+```json
+{
+  "mcpServers": {
+    "ctxgraph": { "command": "ctxgraph-mcp" }
+  }
+}
+```
 
-**"no .ctxgraph/ found"** — Run `ctxgraph init` in your project directory first.
+| Tool | Description |
+|---|---|
+| `ctxgraph_add_episode` | Record a decision or event |
+| `ctxgraph_search` | Fused FTS5 + semantic + graph search |
+| `ctxgraph_traverse` | Walk the graph from an entity |
+| `ctxgraph_find_precedents` | Find similar past events |
+| `ctxgraph_list_entities` | List entities with filters |
+| `ctxgraph_export_graph` | Export entities and edges |
 
-**"extraction pipeline not loaded"** — Run `ctxgraph models download` to download ONNX models (~700 MB).
+## Rust SDK
 
-**Slow first query** — The embedding model (~80 MB) is auto-downloaded by fastembed on first use. Subsequent queries are instant.
-
-**High memory usage** — Set `CTXGRAPH_NO_EMBED=1` to disable semantic search and reduce RAM to ~50 MB (FTS5 keyword search still works).
+```rust
+let graph = ctxgraph::Graph::init(".ctxgraph")?;
+graph.add_episode(Episode::builder("Chose Postgres for billing").build())?;
+let results = graph.search("why Postgres?", 10)?;
+```
 
 ## Project Structure
 
 ```
 crates/
-+-- ctxgraph-core/       Core engine: types, storage, query, temporal
-+-- ctxgraph-extract/    Extraction pipeline (GLiNER ONNX, heuristics)
-+-- ctxgraph-embed/      Local embedding generation
++-- ctxgraph-core/       Types, storage, query, temporal
++-- ctxgraph-extract/    Tiered extraction (ONNX + LLM)
++-- ctxgraph-embed/      Local embeddings
 +-- ctxgraph-cli/        CLI binary
-+-- ctxgraph-mcp/        MCP server for AI agents
-+-- ctxgraph-sdk/        Re-export crate for embedding in Rust apps
++-- ctxgraph-mcp/        MCP server
++-- ctxgraph-sdk/        Rust SDK
 ```
-
-## Design Principles
-
-1. **Zero infrastructure** — One binary, one SQLite file
-2. **Offline-first** — No internet required after model download
-3. **Privacy by default** — Nothing leaves your machine
-4. **Schema-driven** — Extraction labels are user-defined, not hardcoded
-5. **Embeddable** — Rust library first, CLI second
-6. **Append-only history** — Facts invalidated, never deleted
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on submitting code, benchmark episodes, and bug reports.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
