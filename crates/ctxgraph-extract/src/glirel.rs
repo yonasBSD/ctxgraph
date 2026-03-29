@@ -344,6 +344,7 @@ impl GlirelEngine {
     ///
     /// Returns `(input_ids, attention_mask, word_ids)` where `word_ids[t]` maps subword
     /// token `t` to its word index (or `None` for CLS/SEP).
+    #[allow(clippy::type_complexity)]
     fn tokenize_words(
         &self,
         prompt_words: &[String],
@@ -523,13 +524,14 @@ fn first_subword_pool(
     let mut seen = vec![false; num_words];
 
     for (t, wid_opt) in word_ids.iter().enumerate() {
-        if let Some(w) = *wid_opt {
-            if w < num_words && !seen[w] {
-                seen[w] = true;
-                let src = t * dim;
-                let dst = w * dim;
-                out[dst..dst + dim].copy_from_slice(&token_reps[src..src + dim]);
-            }
+        if let Some(w) = *wid_opt
+            && w < num_words
+            && !seen[w]
+        {
+            seen[w] = true;
+            let src = t * dim;
+            let dst = w * dim;
+            out[dst..dst + dim].copy_from_slice(&token_reps[src..src + dim]);
         }
     }
 

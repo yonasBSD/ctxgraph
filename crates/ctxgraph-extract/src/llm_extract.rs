@@ -550,10 +550,10 @@ fn extract_json_from_response(raw: &str) -> &str {
         }
     }
     // Try to find { ... } directly
-    if let Some(start) = stripped.find('{') {
-        if let Some(end) = stripped.rfind('}') {
-            return &stripped[start..=end];
-        }
+    if let Some(start) = stripped.find('{')
+        && let Some(end) = stripped.rfind('}')
+    {
+        return &stripped[start..=end];
     }
     stripped.trim()
 }

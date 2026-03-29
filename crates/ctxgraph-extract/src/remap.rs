@@ -118,10 +118,10 @@ fn canonicalize_tech_entity(name: &str) -> String {
     let mut result = name.to_string();
 
     // Strip npm-style package scopes: "@stripe/stripe-node" → "stripe-node"
-    if result.starts_with('@') {
-        if let Some(slash_pos) = result.find('/') {
-            result = result[slash_pos + 1..].to_string();
-        }
+    if result.starts_with('@')
+        && let Some(slash_pos) = result.find('/')
+    {
+        result = result[slash_pos + 1..].to_string();
     }
 
     // Strip version suffixes: "stripe-node@2.x" → "stripe-node"
@@ -151,10 +151,10 @@ fn canonicalize_tech_entity(name: &str) -> String {
     ];
 
     for check in &version_re_patterns {
-        if check(&result) {
-            if let Some(space_pos) = result.rfind(' ') {
-                result = result[..space_pos].to_string();
-            }
+        if check(&result)
+            && let Some(space_pos) = result.rfind(' ')
+        {
+            result = result[..space_pos].to_string();
         }
     }
 

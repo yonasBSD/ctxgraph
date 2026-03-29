@@ -36,7 +36,7 @@ pub struct ExtractedRelation {
 /// - **Relex**: gliner-relex ONNX model (joint NER + relation extraction).
 pub enum RelEngine {
     /// GLiREL zero-shot relation extraction (highest quality).
-    Glirel(crate::glirel::GlirelEngine),
+    Glirel(Box<crate::glirel::GlirelEngine>),
     /// Has both multitask model and optionally relex model.
     ModelBased(ModelBasedRelEngine),
     Heuristic,
@@ -157,7 +157,7 @@ impl RelEngine {
         for dir in &glirel_dirs {
             if dir.exists() {
                 match crate::glirel::GlirelEngine::new(dir) {
-                    Ok(engine) => return Ok(Self::Glirel(engine)),
+                    Ok(engine) => return Ok(Self::Glirel(Box::new(engine))),
                     Err(_) => continue,
                 }
             }
@@ -192,12 +192,11 @@ impl RelEngine {
 
         // GLiREL fallback: when heuristics find no relations (cross-domain text),
         // use zero-shot neural scoring with schema-aware direction resolution.
-        if relations.is_empty() {
-            if let Self::Glirel(engine) = self {
-                if let Ok(glirel_rels) = engine.extract_with_schema(text, entities, schema, 0.3) {
-                    relations = glirel_rels;
-                }
-            }
+        if relations.is_empty()
+            && let Self::Glirel(engine) = self
+            && let Ok(glirel_rels) = engine.extract_with_schema(text, entities, schema, 0.3)
+        {
+            relations = glirel_rels;
         }
 
         // Relex ONNX model (experimental — opt-in via CTXGRAPH_RELEX=1)
